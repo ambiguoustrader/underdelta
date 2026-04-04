@@ -254,8 +254,6 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_date ON leaderboard_history(snapshot_
 CREATE INDEX IF NOT EXISTS idx_leaderboard_user ON leaderboard_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_comments_entity ON comments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 CREATE INDEX IF NOT EXISTS idx_admin_logs_admin ON admin_logs(admin_id);
 CREATE INDEX IF NOT EXISTS idx_admin_logs_date ON admin_logs(created_at);
