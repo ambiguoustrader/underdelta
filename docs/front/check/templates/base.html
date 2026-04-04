@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Dancing Susie</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background-color: #1a1a1a; /* Темный фон в стиле игры */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        /* Стиль для Сьюзи */
+        .dancing-susie {
+            position: fixed; /* Фиксируем положение на экране */
+            bottom: 20px;    /* Отступ снизу */
+            right: 20px;     /* Отступ справа */
+            width: 150px;    /* Размер Сьюзи */
+            z-index: 1000;   /* Чтобы она была поверх всех элементов */
+            pointer-events: none; /* Чтобы она не мешала кликать на кнопки под ней */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Deltarune Fan Site</h1>
+
+    <!-- Танцующая Сьюзи -->
+    <img src="dance3.webp" alt="Dancing Susie" class="dancing-susie">
+
+</body>
+</html>
