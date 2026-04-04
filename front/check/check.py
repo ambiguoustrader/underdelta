@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template
-from docs.back.database.database import create_database
+from back.database.database import create_database
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, '..', '..', '..'))
