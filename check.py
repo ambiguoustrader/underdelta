@@ -115,6 +115,73 @@ def api_get_user(user_id: int):
     return jsonify(user_data)
 
 
+@app.route('/api/leaderboard', methods=['GET'])
+def api_leaderboard():
+    filter_name = request.args.get('filter', 'rating')
+    limit = request.args.get('limit', default=50, type=int)
+
+    if limit is None:
+        limit = 50
+
+    limit = max(1, min(limit, 100))
+
+    order_map = {
+        'rating': 'u.rating DESC, u.level DESC, u.id ASC',
+        'bosses': 'bosses_defeated DESC, u.rating DESC, u.level DESC, u.id ASC',
+        'endless': 'best_endless_time DESC, u.rating DESC, u.level DESC, u.id ASC',
+        'quiz': 'u.solved_count DESC, u.correct_count DESC, u.rating DESC, u.id ASC',
+    }
+
+    order_clause = order_map.get(filter_name, order_map['rating'])
+
+    rows = query_db(f'''
+        SELECT
+            u.id,
+            u.username,
+            u.email,
+            u.rating,
+            u.level,
+            u.xp,
+            u.solved_count,
+            u.correct_count,
+            u.is_admin,
+            COALESCE(bp.bosses_defeated, 0) AS bosses_defeated,
+            COALESCE(er.best_endless_time, 0) AS best_endless_time
+        FROM users u
+        LEFT JOIN (
+            SELECT
+                user_id,
+                COUNT(*) AS bosses_defeated
+            FROM user_boss_progress
+            WHERE is_defeated = 1
+            GROUP BY user_id
+        ) bp ON bp.user_id = u.id
+        LEFT JOIN (
+            SELECT
+                user_id,
+                MAX(time_survived) AS best_endless_time
+            FROM endless_mode_records
+            GROUP BY user_id
+        ) er ON er.user_id = u.id
+        WHERE u.is_active = 1
+        ORDER BY {order_clause}
+        LIMIT ?
+    ''', [limit])
+
+    users = []
+    for row in rows:
+        user = dict(row)
+        user['name'] = user['username']
+
+        solved = user.get('solved_count', 0) or 0
+        correct = user.get('correct_count', 0) or 0
+        user['accuracy'] = round(correct / solved * 100) if solved else 0
+
+        users.append(user)
+
+    return jsonify({"users": users})
+
+
 @app.route('/boss/<slug>')
 def boss_page(slug):
     boss_name = BOSS_SLUGS.get(slug)
@@ -227,6 +294,7 @@ def api_complete_boss(slug: str):
         "user": user_data
     })
 
+
 @app.route('/lancer')
 def lancer_page():
     boss = query_db(
@@ -253,6 +321,7 @@ def spamton_page():
         abort(404)
 
     return render_template('boss_page.html', boss=dict(boss), slug='spamton')
+
 
 @app.route('/sans')
 def sans_page():
@@ -328,6 +397,313 @@ def api_login():
     full_user = build_user_payload(user['id'])
     return jsonify({"success": True, "user": full_user})
 
+
+# --- ADMIN API ---
+
+def ensure_admin(admin_id: int):
+    admin = query_db('SELECT * FROM users WHERE id = ?', [admin_id], one=True)
+    if not admin:
+        return None, (jsonify({"error": "Администратор не найден"}), 404)
+
+    if not admin['is_admin']:
+        return None, (jsonify({"error": "Недостаточно прав"}), 403)
+
+    return admin, None
+
+
+@app.route('/api/admin/users', methods=['GET'])
+def api_admin_users():
+    users = query_db('''
+        SELECT
+            u.id,
+            u.username,
+            u.email,
+            u.level,
+            u.rating,
+            u.xp,
+            u.is_admin,
+            u.is_active,
+            u.created_at,
+            COALESCE(bp.bosses_defeated, 0) AS bosses_defeated
+        FROM users u
+        LEFT JOIN (
+            SELECT user_id, COUNT(*) AS bosses_defeated
+            FROM user_boss_progress
+            WHERE is_defeated = 1
+            GROUP BY user_id
+        ) bp ON bp.user_id = u.id
+        ORDER BY u.id ASC
+    ''')
+
+    result = []
+    for row in users:
+        item = dict(row)
+        item['name'] = item['username']
+        result.append(item)
+
+    return jsonify({"users": result})
+
+
+@app.route('/api/admin/ban', methods=['POST'])
+def api_admin_ban():
+    data = request.get_json() or {}
+
+    admin_id = data.get('admin_id')
+    user_id = data.get('user_id')
+    reason = data.get('reason', 'Нарушение правил')
+
+    if not admin_id or not user_id:
+        return jsonify({"error": "Не указан admin_id или user_id"}), 400
+
+    _, error = ensure_admin(admin_id)
+    if error:
+        return error
+
+    user = query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
+    if not user:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    if user['is_admin']:
+        return jsonify({"error": "Нельзя заблокировать администратора"}), 400
+
+    db = get_db()
+    db.execute('''
+        UPDATE users
+        SET is_active = 0,
+            banned_by = ?,
+            banned_at = CURRENT_TIMESTAMP,
+            ban_reason = ?
+        WHERE id = ?
+    ''', (admin_id, reason, user_id))
+
+    db.execute('''
+        INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, description)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (admin_id, 'ban_user', 'user', user_id, f'Блокировка пользователя. Причина: {reason}'))
+
+    db.commit()
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/admin/unban', methods=['POST'])
+def api_admin_unban():
+    data = request.get_json() or {}
+
+    admin_id = data.get('admin_id')
+    user_id = data.get('user_id')
+
+    if not admin_id or not user_id:
+        return jsonify({"error": "Не указан admin_id или user_id"}), 400
+
+    _, error = ensure_admin(admin_id)
+    if error:
+        return error
+
+    user = query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
+    if not user:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    db = get_db()
+    db.execute('''
+        UPDATE users
+        SET is_active = 1,
+            banned_by = NULL,
+            banned_at = NULL,
+            ban_reason = NULL
+        WHERE id = ?
+    ''', (user_id,))
+
+    db.execute('''
+        INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, description)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (admin_id, 'unban_user', 'user', user_id, 'Разблокировка пользователя'))
+
+    db.commit()
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/tasks', methods=['GET'])
+def api_tasks_list():
+    limit = request.args.get('limit', default=50, type=int)
+    limit = max(1, min(limit or 50, 200))
+
+    tasks = query_db('''
+        SELECT *
+        FROM tasks
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+    ''', [limit])
+
+    result = []
+    for row in tasks:
+        item = dict(row)
+        result.append(item)
+
+    return jsonify({"tasks": result})
+
+
+@app.route('/api/tasks', methods=['POST'])
+def api_task_create():
+    data = request.get_json() or {}
+
+    created_by = data.get('created_by')
+    _, error = ensure_admin(created_by)
+    if error:
+        return error
+
+    subject = data.get('subject')
+    difficulty = data.get('difficulty')
+    topic = data.get('topic', '')
+    question = data.get('question')
+    options = data.get('options')
+    answer = data.get('answer')
+    hint = data.get('hint', '')
+
+    if not subject or not difficulty or not question or not options or not answer:
+        return jsonify({"error": "Не заполнены обязательные поля"}), 400
+
+    if not isinstance(options, list) or len(options) < 2:
+        return jsonify({"error": "Нужно минимум 2 варианта ответа"}), 400
+
+    import json
+
+    db = get_db()
+    db.execute('''
+        INSERT INTO tasks (
+            subject, difficulty, topic, question, options, answer, hint, created_by
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        subject,
+        difficulty,
+        topic,
+        question,
+        json.dumps(options, ensure_ascii=False),
+        answer,
+        hint,
+        created_by
+    ))
+    db.commit()
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/iceberg/facts', methods=['GET'])
+def api_iceberg_facts():
+    facts = query_db('''
+        SELECT *
+        FROM iceberg_facts
+        WHERE is_visible = 1
+        ORDER BY level ASC, id ASC
+    ''')
+
+    result = [dict(row) for row in facts]
+    return jsonify({"facts": result})
+
+
+@app.route('/api/iceberg/facts', methods=['POST'])
+def api_iceberg_fact_create():
+    data = request.get_json() or {}
+
+    created_by = data.get('created_by')
+    _, error = ensure_admin(created_by)
+    if error:
+        return error
+
+    title = data.get('title')
+    content = data.get('content')
+    level = data.get('level')
+    position_x = data.get('position_x')
+    position_y = data.get('position_y')
+
+    if not title or not content or not level:
+        return jsonify({"error": "Не заполнены обязательные поля"}), 400
+
+    db = get_db()
+    db.execute('''
+        INSERT INTO iceberg_facts (
+            title, content, level, position_x, position_y, is_visible
+        )
+        VALUES (?, ?, ?, ?, ?, 1)
+    ''', (
+        title,
+        content,
+        int(level),
+        position_x,
+        position_y
+    ))
+
+    db.execute('''
+        INSERT INTO admin_logs (admin_id, action_type, target_type, description)
+        VALUES (?, ?, ?, ?)
+    ''', (created_by, 'create_fact', 'fact', f'Добавлен факт айсберга: {title}'))
+
+    db.commit()
+
+    return jsonify({"success": True})
+
+
+@app.route('/api/bosses', methods=['GET'])
+def api_bosses_list():
+    bosses = query_db('''
+        SELECT *
+        FROM boss_battles
+        ORDER BY difficulty_level ASC, id ASC
+    ''')
+
+    result = [dict(row) for row in bosses]
+    return jsonify({"bosses": result})
+
+@app.route('/api/iceberg/facts/<int:fact_id>/position', methods=['POST'])
+def api_iceberg_fact_update_position(fact_id: int):
+    data = request.get_json() or {}
+
+    admin_id = data.get('admin_id')
+    position_x = data.get('position_x')
+    position_y = data.get('position_y')
+
+    if not admin_id:
+        return jsonify({"error": "Не указан admin_id"}), 400
+
+    if position_x is None or position_y is None:
+        return jsonify({"error": "Не указаны координаты"}), 400
+
+    _, error = ensure_admin(admin_id)
+    if error:
+        return error
+
+    fact = query_db('SELECT * FROM iceberg_facts WHERE id = ?', [fact_id], one=True)
+    if not fact:
+        return jsonify({"error": "Факт не найден"}), 404
+
+    db = get_db()
+    db.execute('''
+        UPDATE iceberg_facts
+        SET position_x = ?, position_y = ?
+        WHERE id = ?
+    ''', (int(position_x), int(position_y), fact_id))
+
+    db.execute('''
+        INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, description)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (
+        admin_id,
+        'move_fact',
+        'fact',
+        fact_id,
+        f'Изменена позиция факта #{fact_id}: x={int(position_x)}, y={int(position_y)}'
+    ))
+
+    db.commit()
+
+    return jsonify({
+        "success": True,
+        "fact_id": fact_id,
+        "position_x": int(position_x),
+        "position_y": int(position_y)
+    })
 
 # --- ЗАПУСК ПРИЛОЖЕНИЯ ---
 

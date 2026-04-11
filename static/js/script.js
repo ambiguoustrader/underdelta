@@ -30,6 +30,9 @@ let endlessLives = 3;
 let endlessActive = false;
 
 let ibergFakty = [];
+let icebergEditMode = false;
+let icebergDragState = null;
+let icebergPendingPoint = null;
 let tekushiyLeaderboardFilter = 'rating';
 let tekushiyAdminTab = 'users';
 
@@ -950,27 +953,76 @@ async function zagruzitAysberg() {
 
         renderIcebergButtons();
         renderIcebergList();
+        updateIcebergAdminTools();
+        bindIcebergStageClickForAdmin();
 
     } catch (err) {
         console.error('Ошибка загрузки фактов:', err);
     }
 }
 
+function bindIcebergStageClickForAdmin() {
+    const stage = document.getElementById('iceberg-buttons')?.parentElement;
+    if (!stage) return;
+
+    stage.onclick = function (event) {
+        if (!icebergEditMode || !tekushiyUser || !tekushiyUser.is_admin) {
+            return;
+        }
+
+        if (event.target && event.target.classList.contains('fact-btn')) {
+            return;
+        }
+
+        const rect = stage.getBoundingClientRect();
+        const x = Math.round(event.clientX - rect.left);
+        const y = Math.round(event.clientY - rect.top);
+
+        icebergPendingPoint = { x, y };
+
+        const xInput = document.getElementById('iceberg-fact-x');
+        const yInput = document.getElementById('iceberg-fact-y');
+
+        if (xInput) xInput.value = x;
+        if (yInput) yInput.value = y;
+
+        showToast('info', `Координаты выбраны: X=${x}, Y=${y}`);
+    };
+}
+
 function renderIcebergButtons() {
     let konteyner = document.getElementById('iceberg-buttons');
+    let stage = konteyner ? konteyner.parentElement : null;
+
+    if (!konteyner || !stage) {
+        return;
+    }
+
     konteyner.innerHTML = '';
 
     ibergFakty.forEach((fact, index) => {
-        if (fact.position_x && fact.position_y) {
-            let btn = document.createElement('button');
-            btn.className = 'fact-btn level-' + fact.level;
-            btn.style.left = fact.position_x + 'px';
-            btn.style.top = fact.position_y + 'px';
-            btn.textContent = index + 1;
-            btn.title = fact.title;
-            btn.onclick = () => otkrytFakt(fact);
-            konteyner.appendChild(btn);
+        if (fact.position_x == null || fact.position_y == null) {
+            return;
         }
+
+        let btn = document.createElement('button');
+        btn.className = 'fact-btn level-' + fact.level;
+        btn.style.left = fact.position_x + 'px';
+        btn.style.top = fact.position_y + 'px';
+        btn.textContent = index + 1;
+        btn.title = icebergEditMode ? `${fact.title} (id=${fact.id})` : fact.title;
+        btn.dataset.factId = fact.id;
+
+        if (icebergEditMode && tekushiyUser && tekushiyUser.is_admin) {
+            btn.style.cursor = 'grab';
+            btn.onpointerdown = (e) => startIcebergFactDrag(e, btn, fact);
+            btn.onclick = (e) => e.preventDefault();
+        } else {
+            btn.style.cursor = 'pointer';
+            btn.onclick = () => otkrytFakt(fact);
+        }
+
+        konteyner.appendChild(btn);
     });
 }
 
@@ -1002,6 +1054,56 @@ function renderIcebergList() {
     });
 
     konteyner.innerHTML = html;
+}
+
+async function dobavitFaktInline() {
+    const title = document.getElementById('iceberg-fact-title').value.trim();
+    const content = document.getElementById('iceberg-fact-content').value.trim();
+    const level = parseInt(document.getElementById('iceberg-fact-level').value, 10);
+    const position_x = parseInt(document.getElementById('iceberg-fact-x').value, 10);
+    const position_y = parseInt(document.getElementById('iceberg-fact-y').value, 10);
+
+    if (!title || !content || !level) {
+        showToast('error', 'Заполни заголовок, содержание и уровень');
+        return;
+    }
+
+    if (Number.isNaN(position_x) || Number.isNaN(position_y)) {
+        showToast('error', 'Укажи координаты X и Y');
+        return;
+    }
+
+    try {
+        const result = await apiZapros('/api/iceberg/facts', {
+            method: 'POST',
+            body: {
+                title,
+                content,
+                level,
+                position_x,
+                position_y,
+                created_by: tekushiyUser.id
+            }
+        });
+
+        if (result.success) {
+            showToast('success', 'Факт добавлен');
+            resetIcebergInlineForm();
+            await zagruzitAysberg();
+            await zagruzitAdminFakty();
+        }
+    } catch (err) {
+        showToast('error', 'Ошибка: ' + err.message);
+    }
+}
+
+function resetIcebergInlineForm() {
+    document.getElementById('iceberg-fact-title').value = '';
+    document.getElementById('iceberg-fact-content').value = '';
+    document.getElementById('iceberg-fact-level').value = '1';
+    document.getElementById('iceberg-fact-x').value = '';
+    document.getElementById('iceberg-fact-y').value = '';
+    icebergPendingPoint = null;
 }
 
 function otkrytFakt(fact) {
@@ -1049,6 +1151,133 @@ async function zaregistrirovatProsmotr(factId) {
 function vernutsyaKAysberg() {
     document.getElementById('iceberg-view').classList.remove('hidden');
     document.getElementById('fact-page').classList.add('hidden');
+}
+
+function updateIcebergAdminTools() {
+    const tools = document.getElementById('iceberg-admin-tools');
+    const btn = document.getElementById('iceberg-edit-toggle');
+    const hint = document.getElementById('iceberg-edit-hint');
+    const form = document.getElementById('iceberg-inline-fact-form');
+
+    if (!tools || !btn || !hint || !form) {
+        return;
+    }
+
+    if (tekushiyUser && tekushiyUser.is_admin) {
+        tools.classList.remove('hidden');
+    } else {
+        tools.classList.add('hidden');
+        form.classList.add('hidden');
+        icebergEditMode = false;
+    }
+
+    if (icebergEditMode) {
+        btn.textContent = 'Выключить edit mode';
+        btn.className = 'btn-primary';
+        hint.textContent = 'Режим включён: перетаскивай точки мышкой или кликни по айсбергу, чтобы подставить координаты.';
+        form.classList.remove('hidden');
+    } else {
+        btn.textContent = 'Включить edit mode';
+        btn.className = 'btn-secondary';
+        hint.textContent = 'Включи режим редактирования, чтобы перетаскивать точки.';
+        form.classList.add('hidden');
+    }
+}
+
+function toggleIcebergEditMode() {
+    if (!tekushiyUser || !tekushiyUser.is_admin) {
+        showToast('error', 'Только администратор может редактировать айсберг');
+        return;
+    }
+
+    icebergEditMode = !icebergEditMode;
+    updateIcebergAdminTools();
+    renderIcebergButtons();
+}
+
+function startIcebergFactDrag(event, buttonEl, fact) {
+    if (!icebergEditMode) {
+        return;
+    }
+
+    event.preventDefault();
+
+    const stage = document.getElementById('iceberg-buttons').parentElement;
+    const btnRect = buttonEl.getBoundingClientRect();
+
+    icebergDragState = {
+        factId: fact.id,
+        buttonEl,
+        stage,
+        offsetX: event.clientX - btnRect.left,
+        offsetY: event.clientY - btnRect.top
+    };
+
+    buttonEl.style.cursor = 'grabbing';
+
+    window.addEventListener('pointermove', onIcebergFactDragMove);
+    window.addEventListener('pointerup', onIcebergFactDragEnd);
+}
+
+function onIcebergFactDragMove(event) {
+    if (!icebergDragState) {
+        return;
+    }
+
+    const stageRect = icebergDragState.stage.getBoundingClientRect();
+    const btnRect = icebergDragState.buttonEl.getBoundingClientRect();
+
+    let x = event.clientX - stageRect.left - icebergDragState.offsetX;
+    let y = event.clientY - stageRect.top - icebergDragState.offsetY;
+
+    const maxX = stageRect.width - btnRect.width;
+    const maxY = stageRect.height - btnRect.height;
+
+    x = Math.max(0, Math.min(x, maxX));
+    y = Math.max(0, Math.min(y, maxY));
+
+    icebergDragState.buttonEl.style.left = Math.round(x) + 'px';
+    icebergDragState.buttonEl.style.top = Math.round(y) + 'px';
+}
+
+async function onIcebergFactDragEnd() {
+    if (!icebergDragState) {
+        return;
+    }
+
+    const factId = icebergDragState.factId;
+    const buttonEl = icebergDragState.buttonEl;
+
+    window.removeEventListener('pointermove', onIcebergFactDragMove);
+    window.removeEventListener('pointerup', onIcebergFactDragEnd);
+
+    buttonEl.style.cursor = 'grab';
+
+    const x = parseInt(buttonEl.style.left, 10) || 0;
+    const y = parseInt(buttonEl.style.top, 10) || 0;
+
+    icebergDragState = null;
+
+    const fact = ibergFakty.find(f => f.id === factId);
+    if (fact) {
+        fact.position_x = x;
+        fact.position_y = y;
+    }
+
+    try {
+        await apiZapros('/api/iceberg/facts/' + factId + '/position', {
+            method: 'POST',
+            body: {
+                admin_id: tekushiyUser.id,
+                position_x: x,
+                position_y: y
+            }
+        });
+
+        showToast('success', 'Позиция факта сохранена');
+    } catch (err) {
+        showToast('error', 'Не удалось сохранить позицию: ' + err.message);
+    }
 }
 
 // ============================================
@@ -1336,6 +1565,7 @@ async function dobavitFakt() {
             showToast('success', 'Факт добавлен!');
             document.getElementById('admin-facts-form').classList.add('hidden');
             zagruzitAdminFakty();
+            zagruzitAysberg();
         }
     } catch (err) {
         showToast('error', 'Ошибка: ' + err.message);

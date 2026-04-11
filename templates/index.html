@@ -612,6 +612,51 @@
                         <div id="iceberg-buttons"></div>
                     </div>
                 </div>
+                <!-- Айсберг админка -->
+                <div id="iceberg-admin-tools" class="hidden glass-card" style="padding: 16px; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div>
+                            <div style="font-weight: 700; margin-bottom: 4px;">Редактирование айсберга</div>
+                            <div id="iceberg-edit-hint" style="font-size: 0.85rem; color: #9ca3af;">
+                                Включи режим редактирования, чтобы перетаскивать точки.
+                            </div>
+                        </div>
+
+                        <button id="iceberg-edit-toggle" class="btn-secondary" onclick="toggleIcebergEditMode()">
+                            Включить edit mode
+                        </button>
+                    </div>
+                </div>
+
+                <div id="iceberg-inline-fact-form" class="hidden glass-card" style="padding: 20px; margin-top: 16px;">
+                    <h3 style="font-weight: 700; margin-bottom: 16px;">Новый факт на айсберге</h3>
+
+                    <input type="text" id="iceberg-fact-title" class="input-field" placeholder="Заголовок" style="margin-bottom: 12px;">
+
+                    <textarea id="iceberg-fact-content" class="input-field" placeholder="Содержание факта" rows="4" style="margin-bottom: 12px;"></textarea>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <select id="iceberg-fact-level" class="input-field">
+                            <option value="1">Уровень 1 — Известное</option>
+                            <option value="2">Уровень 2 — Малоизвестное</option>
+                            <option value="3">Уровень 3 — Детали</option>
+                            <option value="4">Уровень 4 — Теории</option>
+                            <option value="5">Уровень 5 — Секреты</option>
+                        </select>
+
+                        <input type="number" id="iceberg-fact-x" class="input-field" placeholder="X позиция">
+                        <input type="number" id="iceberg-fact-y" class="input-field" placeholder="Y позиция">
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-success" onclick="dobavitFaktInline()">Добавить</button>
+                        <button class="btn-secondary" onclick="resetIcebergInlineForm()">Очистить</button>
+                    </div>
+
+                    <div style="margin-top: 10px; font-size: 0.8rem; color: #9ca3af;">
+                        Можно ввести X/Y вручную или сначала включить edit mode и кликнуть по айсбергу.
+                    </div>
+                </div>
 
                 <!-- Список фактов (если нет картинки) -->
                 <div class="glass-card" style="padding: 24px; margin-top: 24px;">
