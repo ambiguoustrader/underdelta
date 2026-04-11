@@ -227,6 +227,32 @@ def api_complete_boss(slug: str):
         "user": user_data
     })
 
+@app.route('/lancer')
+def lancer_page():
+    boss = query_db(
+        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        ['Lancer'],
+        one=True
+    )
+
+    if not boss:
+        abort(404)
+
+    return render_template('boss_page.html', boss=dict(boss), slug='lancer')
+
+
+@app.route('/spamton')
+def spamton_page():
+    boss = query_db(
+        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        ['Spamton NEO'],
+        one=True
+    )
+
+    if not boss:
+        abort(404)
+
+    return render_template('boss_page.html', boss=dict(boss), slug='spamton')
 
 @app.route('/sans')
 def sans_page():
@@ -264,15 +290,12 @@ def api_register():
     if not data or not data.get('email') or not data.get('password') or not data.get('name'):
         return jsonify({"success": False, "error": "Заполните все поля"}), 400
 
-    # Проверяем, не занят ли email
     user = query_db('SELECT * FROM users WHERE email = ?', [data['email']], one=True)
     if user:
         return jsonify({"success": False, "error": "Пользователь с таким email уже существует"}), 400
 
-    # Хэшируем пароль
     password_hash = hash_password(data['password'])
 
-    # Сохраняем нового пользователя
     db_connection = get_db()
     cursor = db_connection.cursor()
     cursor.execute(
@@ -281,19 +304,10 @@ def api_register():
     )
     db_connection.commit()
 
-    # Получаем только что созданного пользователя, чтобы вернуть его данные
     new_user_id = cursor.lastrowid
-    new_user_data = query_db('SELECT * FROM users WHERE id = ?', [new_user_id], one=True)
+    full_user = build_user_payload(new_user_id)
 
-    # Преобразуем Row-объект в словарь
-    user_dict = dict(new_user_data)
-    # Удаляем хэш пароля перед отправкой клиенту
-    del user_dict['password_hash']
-
-    # В вашем JS коде username, а в БД username
-    user_dict['name'] = user_dict['username']
-
-    return jsonify({"success": True, "user": user_dict}), 201
+    return jsonify({"success": True, "user": full_user}), 201
 
 
 @app.route('/api/login', methods=['POST'])
@@ -302,27 +316,17 @@ def api_login():
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({"success": False, "error": "Не указан email или пароль"}), 400
 
-    # Ищем пользователя по email
     user = query_db('SELECT * FROM users WHERE email = ?', [data['email']], one=True)
-
-    # Хэшируем введенный пароль для сравнения
     password_hash = hash_password(data['password'])
 
-    # Проверяем, найден ли пользователь и совпадает ли хэш пароля
     if not user or user['password_hash'] != password_hash:
         return jsonify({"success": False, "error": "Неверный email или пароль"}), 401
 
     if not user['is_active']:
         return jsonify({"success": False, "error": "Этот аккаунт заблокирован"}), 403
 
-    # Преобразуем Row-объект в словарь для отправки
-    user_dict = dict(user)
-    del user_dict['password_hash']
-
-    # В вашем JS коде username, а в БД username
-    user_dict['name'] = user_dict['username']
-
-    return jsonify({"success": True, "user": user_dict})
+    full_user = build_user_payload(user['id'])
+    return jsonify({"success": True, "user": full_user})
 
 
 # --- ЗАПУСК ПРИЛОЖЕНИЯ ---

@@ -51,7 +51,7 @@
                     </div>
 
                     <div class="boss-page-actions">
-                        <a class="btn-primary" href="/?section=bosses">Назад к списку</a>
+                        <button type="button" class="btn-primary" onclick="returnToBossList()">Назад к списку</button>
                         {% if slug == 'sans' %}
                             <a class="btn-secondary" href="/sans-simulator">Открыть симулятор Sans</a>
                         {% endif %}
@@ -60,5 +60,11 @@
             </div>
         </div>
     </div>
+<script>
+function returnToBossList() {
+    sessionStorage.setItem('open_section_once', 'bosses');
+    window.location.href = '/';
+}
+</script>
 </body>
 </html>

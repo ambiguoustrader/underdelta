@@ -141,7 +141,9 @@ async function vypolnitVhod() {
         });
 
         if (result.success) {
-            tekushiyUser = result.user;
+            let fullUser = await apiZapros('/api/user/' + result.user.id);
+
+            tekushiyUser = fullUser;
             localStorage.setItem('deltarune_user', JSON.stringify(tekushiyUser));
             pokazatGlavniy();
         }
@@ -172,7 +174,9 @@ async function vypolnitRegistraciyu() {
         });
 
         if (result.success) {
-            tekushiyUser = result.user;
+            let fullUser = await apiZapros('/api/user/' + result.user.id);
+
+            tekushiyUser = fullUser;
             localStorage.setItem('deltarune_user', JSON.stringify(tekushiyUser));
             pokazatGlavniy();
         }
@@ -180,7 +184,6 @@ async function vypolnitRegistraciyu() {
         pokazatOshibkuAuth(err.message);
     }
 }
-
 function vyjtiIzAkkunta() {
     tekushiyUser = null;
     localStorage.removeItem('deltarune_user');
@@ -506,7 +509,7 @@ const bossesCatalog = [
         image: '/static/images/bosses/lancer.png',
         difficulty: 1,
         rewardXp: 500,
-        route: '/boss/lancer',
+        route: '/lancer',
         buttonText: 'Открыть страницу'
     },
     {
@@ -516,7 +519,7 @@ const bossesCatalog = [
         image: '/static/images/bosses/BIGSHOT.png',
         difficulty: 2,
         rewardXp: 750,
-        route: '/boss/spamton',
+        route: '/spamton',
         buttonText: 'Открыть страницу'
     },
     {
@@ -1432,15 +1435,15 @@ document.getElementById('fact-modal').addEventListener('click', function(e) {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================
 
-function openSectionFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const section = params.get('section');
+function openStoredSectionOnce() {
+    const section = sessionStorage.getItem('open_section_once');
 
-    if (section) {
-        setTimeout(() => {
-            pokazatSekciyu(section);
-        }, 0);
+    if (!section) {
+        return;
     }
+
+    sessionStorage.removeItem('open_section_once');
+    pokazatSekciyu(section);
 }
 
 window.onload = function() {
@@ -1452,15 +1455,15 @@ window.onload = function() {
         try {
             tekushiyUser = JSON.parse(saved);
 
-            apiZapros('/api/user/' + tekushiyUser.id).then(userData => {
-                tekushiyUser = userData;
-                localStorage.setItem('deltarune_user', JSON.stringify(tekushiyUser));
-                pokazatGlavniy();
-                openSectionFromUrl();
-            }).catch(() => {
-                pokazatGlavniy();
-                openSectionFromUrl();
-            });
+        apiZapros('/api/user/' + tekushiyUser.id).then(userData => {
+            tekushiyUser = userData;
+            localStorage.setItem('deltarune_user', JSON.stringify(tekushiyUser));
+            pokazatGlavniy();
+            openStoredSectionOnce();
+        }).catch(() => {
+            pokazatGlavniy();
+            openStoredSectionOnce();
+        });
 
         } catch (e) {
             localStorage.removeItem('deltarune_user');
