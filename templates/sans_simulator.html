@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sans Simulator - UNDERDELTA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="boss-page-shell">
+        <div class="boss-page-container">
+            <a href="/sans" class="boss-page-back">← Назад к Sans</a>
+
+            <div class="glass-card" style="padding: 18px; margin-bottom: 18px;">
+                <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">
+                    Sans Fight Simulator
+                </h1>
+                <p style="color: #9ca3af;">
+                    Отдельная страница с встраиваемым боем.
+                </p>
+            </div>
+            <button
+                class="btn-success"
+                onclick="markSansAsDefeated()"
+                style="margin-bottom: 16px;"
+            >
+                Тест: засчитать победу над Сансом
+            </button>
+
+            <iframe
+                class="boss-sim-frame"
+                src="{{ url_for('static', filename='games/c2-sans-fight/index.html') }}">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+    async function markSansAsDefeated() {
+        const saved = localStorage.getItem('deltarune_user');
+        if (!saved) {
+            alert('Пользователь не найден в localStorage');
+            return;
+        }
+
+        const user = JSON.parse(saved);
+
+        const response = await fetch('/api/bosses/sans/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.error || 'Не удалось сохранить победу');
+            return;
+        }
+
+        if (data.user) {
+            localStorage.setItem('deltarune_user', JSON.stringify(data.user));
+        }
+
+        alert(
+            data.first_victory
+                ? 'Санс побеждён! Ачивка получена.'
+                : 'Победа уже была сохранена раньше.'
+        );
+
+        window.location.href = '/?section=bosses';
+    }
+
+    window.addEventListener('message', async (event) => {
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+
+        if (event.data?.type === 'boss_win' && event.data?.boss === 'sans') {
+            await markSansAsDefeated();
+        }
+    });
+    </script>
+</body>
+</html>

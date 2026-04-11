@@ -184,6 +184,9 @@ async function vypolnitRegistraciyu() {
 function vyjtiIzAkkunta() {
     tekushiyUser = null;
     localStorage.removeItem('deltarune_user');
+
+    document.body.classList.add('show-auth-dancers');
+
     document.getElementById('main-screen').classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
 }
@@ -224,6 +227,8 @@ function toggleSidebar() {
 // ============================================
 
 async function pokazatGlavniy() {
+    document.body.classList.remove('show-auth-dancers');
+
     document.getElementById('loading-screen').classList.add('hidden');
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('main-screen').classList.remove('hidden');
@@ -236,7 +241,6 @@ async function pokazatGlavniy() {
         document.getElementById('admin-nav-title').style.display = 'block';
     }
 }
-
 function obnovitUserInfo() {
     let imya = tekushiyUser.name || tekushiyUser.username || 'Игрок';
     let bukva = imya.charAt(0).toUpperCase();
@@ -494,60 +498,88 @@ function resetViktorimy() {
 // БОССЫ
 // ============================================
 
-async function zagruzitBossov() {
+const bossesCatalog = [
+    {
+        slug: 'lancer',
+        name: 'Lancer',
+        description: 'Лёгкий стартовый босс. Отлично подходит для первого боя.',
+        image: '/static/images/bosses/lancer.png',
+        difficulty: 1,
+        rewardXp: 500,
+        route: '/boss/lancer',
+        buttonText: 'Открыть страницу'
+    },
+    {
+        slug: 'spamton',
+        name: 'Spamton NEO',
+        description: 'Средний по сложности босс с более агрессивным стилем.',
+        image: '/static/images/bosses/BIGSHOT.png',
+        difficulty: 2,
+        rewardXp: 750,
+        route: '/boss/spamton',
+        buttonText: 'Открыть страницу'
+    },
+    {
+        slug: 'sans',
+        name: 'Sans',
+        description: 'Самый опасный босс. Для него будет отдельная страница и симулятор.',
+        image: '/static/images/bosses/sans.png',
+        difficulty: 3,
+        rewardXp: 1000,
+        route: '/sans',
+        extraRoute: '/sans-simulator',
+        buttonText: 'Страница босса',
+        extraButtonText: 'Симулятор боя'
+    }
+];
+
+function zagruzitBossov() {
     document.getElementById('bosses-list').classList.remove('hidden');
     document.getElementById('boss-battle').classList.add('hidden');
     document.getElementById('boss-result').classList.add('hidden');
 
-    let konteyner = document.getElementById('bosses-grid');
-    konteyner.innerHTML = '<p style="color: #9ca3af; grid-column: 1/-1;">Загрузка...</p>';
+    const konteyner = document.getElementById('bosses-grid');
 
-    try {
-        let data = await apiZapros('/api/bosses?user_id=' + tekushiyUser.id);
-        let bossy = data.bosses || [];
+    let html = '';
+    bossesCatalog.forEach((boss) => {
+        html += `
+            <div class="boss-link-card boss-difficulty-${boss.difficulty}">
+                <div class="boss-link-image-wrap">
+                    <img src="${boss.image}" alt="${boss.name}" class="boss-link-image">
+                </div>
 
-        if (bossy.length === 0) {
-            konteyner.innerHTML = '<p style="color: #9ca3af; grid-column: 1/-1; text-align: center; padding: 40px;">Боссы не найдены</p>';
-            return;
-        }
+                <div class="boss-link-content">
+                    <div class="boss-link-top">
+                        <h3 class="boss-link-title">${boss.name}</h3>
+                        <span class="boss-link-stars">
+                            ${'★'.repeat(boss.difficulty)}${'☆'.repeat(3 - boss.difficulty)}
+                        </span>
+                    </div>
 
-        let html = '';
-        bossy.forEach(boss => {
-            let defeated = boss.is_defeated;
-            let locked = boss.is_locked;
-            let diffClass = 'boss-difficulty-' + boss.difficulty_level;
+                    <p class="boss-link-description">${boss.description}</p>
 
-            html += `
-                <div class="boss-card ${diffClass} ${defeated ? 'defeated' : ''} ${locked ? 'locked' : ''}"
-                     onclick="${locked ? '' : 'nachatBossBattle(' + boss.id + ')'}">
-                    <div style="padding: 20px;">
-                        ${defeated ? '<div style="position: absolute; top: 12px; right: 12px; background: rgba(16,185,129,0.2); border: 1px solid #10b981; border-radius: 20px; padding: 2px 10px; font-size: 0.7rem; color: #10b981;">Побеждён</div>' : ''}
-                        ${locked ? '<div style="position: absolute; top: 12px; right: 12px; font-size: 1.2rem;">🔒</div>' : ''}
+                    <div class="boss-link-meta">
+                        <span>Награда: +${boss.rewardXp} XP</span>
+                        <span>Маршрут: ${boss.route}</span>
+                    </div>
 
-                        <div style="font-size: 3rem; text-align: center; margin-bottom: 12px;">
-                            ${boss.boss_image ? `<img src="${boss.boss_image}" alt="${boss.boss_name}" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto; display: block;">` : '👾'}
-                        </div>
+                    <div class="boss-link-actions">
+                        <a class="btn-primary boss-link-btn" href="${boss.route}">
+                            ${boss.buttonText}
+                        </a>
 
-                        <h3 style="font-size: 1.2rem; font-weight: 700; text-align: center; margin-bottom: 8px;">${boss.boss_name}</h3>
-                        <p style="color: #9ca3af; font-size: 0.85rem; text-align: center; margin-bottom: 16px; line-height: 1.4;">${boss.boss_description || ''}</p>
-
-                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #9ca3af;">
-                            <span>Сложность: ${'★'.repeat(boss.difficulty_level)}${'☆'.repeat(3 - boss.difficulty_level)}</span>
-                            <span>+${boss.reward_xp} XP</span>
-                        </div>
-
-                        ${boss.best_time ? `<div style="margin-top: 8px; font-size: 0.75rem; color: #10b981;">Лучшее время: ${formatVremya(Math.round(boss.best_time))}</div>` : ''}
-                        ${boss.attempts ? `<div style="font-size: 0.75rem; color: #9ca3af;">Попыток: ${boss.attempts}</div>` : ''}
+                        ${boss.extraRoute ? `
+                            <a class="btn-secondary boss-link-btn" href="${boss.extraRoute}">
+                                ${boss.extraButtonText}
+                            </a>
+                        ` : ''}
                     </div>
                 </div>
-            `;
-        });
+            </div>
+        `;
+    });
 
-        konteyner.innerHTML = html;
-
-    } catch (err) {
-        konteyner.innerHTML = '<p style="color: #ef4444; grid-column: 1/-1; text-align: center;">Ошибка загрузки боссов</p>';
-    }
+    konteyner.innerHTML = html;
 }
 
 async function nachatBossBattle(bossId) {
@@ -1400,10 +1432,23 @@ document.getElementById('fact-modal').addEventListener('click', function(e) {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================
 
+function openSectionFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get('section');
+
+    if (section) {
+        setTimeout(() => {
+            pokazatSekciyu(section);
+        }, 0);
+    }
+}
+
 window.onload = function() {
     let saved = localStorage.getItem('deltarune_user');
 
     if (saved) {
+        document.body.classList.remove('show-auth-dancers');
+
         try {
             tekushiyUser = JSON.parse(saved);
 
@@ -1411,16 +1456,20 @@ window.onload = function() {
                 tekushiyUser = userData;
                 localStorage.setItem('deltarune_user', JSON.stringify(tekushiyUser));
                 pokazatGlavniy();
+                openSectionFromUrl();
             }).catch(() => {
                 pokazatGlavniy();
+                openSectionFromUrl();
             });
 
         } catch (e) {
             localStorage.removeItem('deltarune_user');
+            document.body.classList.add('show-auth-dancers');
             document.getElementById('loading-screen').classList.add('hidden');
             document.getElementById('auth-screen').classList.remove('hidden');
         }
     } else {
+        document.body.classList.add('show-auth-dancers');
         document.getElementById('loading-screen').classList.add('hidden');
         document.getElementById('auth-screen').classList.remove('hidden');
     }

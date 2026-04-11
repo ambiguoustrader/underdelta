@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ boss.boss_name }} — DELTARUNE WORLD</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="boss-page-shell">
+        <div class="boss-page-container">
+            <a href="/" class="boss-page-back">← На главную</a>
+
+            <div class="glass-card boss-page-hero boss-difficulty-{{ boss.difficulty_level }}">
+                <div class="boss-page-image-box">
+                    <img
+                        src="{{ boss.boss_image }}"
+                        alt="{{ boss.boss_name }}"
+                        class="boss-page-image"
+                    >
+                </div>
+
+                <div>
+                    <div class="boss-page-title">{{ boss.boss_name }}</div>
+                    <div class="boss-page-subtitle">
+                        {{ boss.boss_description }}
+                    </div>
+
+                    <div class="boss-page-stats">
+                        <div class="boss-page-stat">
+                            <div class="boss-page-stat-label">HP</div>
+                            <div class="boss-page-stat-value">{{ boss.boss_hp }}</div>
+                        </div>
+
+                        <div class="boss-page-stat">
+                            <div class="boss-page-stat-label">Сложность</div>
+                            <div class="boss-page-stat-value">
+                                {{ '★' * boss.difficulty_level }}{{ '☆' * (3 - boss.difficulty_level) }}
+                            </div>
+                        </div>
+
+                        <div class="boss-page-stat">
+                            <div class="boss-page-stat-label">Награда</div>
+                            <div class="boss-page-stat-value">+{{ boss.reward_xp }} XP</div>
+                        </div>
+
+                        <div class="boss-page-stat">
+                            <div class="boss-page-stat-label">Открывается с уровня</div>
+                            <div class="boss-page-stat-value">{{ boss.unlock_level }}</div>
+                        </div>
+                    </div>
+
+                    <div class="boss-page-actions">
+                        <a class="btn-primary" href="/?section=bosses">Назад к списку</a>
+                        {% if slug == 'sans' %}
+                            <a class="btn-secondary" href="/sans-simulator">Открыть симулятор Sans</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
