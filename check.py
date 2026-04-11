@@ -267,7 +267,7 @@ def api_complete_boss(slug: str):
 
             if slug == 'lancer':
                 give_achievement(user_id, 'boss_lancer')
-            elif slug == 'spamton':
+            elif slug == 'spamton': # SPAMTON UPDATE
                 give_achievement(user_id, 'boss_spamton')
             elif slug == 'sans':
                 give_achievement(user_id, 'boss_sans')
