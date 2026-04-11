@@ -267,6 +267,10 @@ def api_complete_boss(slug: str):
 
         if slug == 'sans':
             give_achievement(user_id, 'boss_sans')
+        elif slug == 'lancer':
+            give_achievement(user_id, 'boss_lancer')
+        elif slug == 'spamton':
+            give_achievement(user_id, 'boss_spamton')
 
         defeated_count = query_db(
             'SELECT COUNT(*) AS cnt FROM user_boss_progress WHERE user_id = ? AND is_defeated = 1',
@@ -349,6 +353,20 @@ def sans_simulator():
         abort(404)
 
     return render_template('sans_simulator.html', boss=dict(boss))
+
+
+@app.route('/lancer-simulator')
+def lancer_simulator():
+    boss = query_db(
+        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        ['Lancer'],
+        one=True
+    )
+
+    if not boss:
+        abort(404)
+
+    return render_template('lancer_simulator.html', boss=dict(boss))
 
 
 # --- API МАРШРУТЫ ---
@@ -656,6 +674,7 @@ def api_bosses_list():
     result = [dict(row) for row in bosses]
     return jsonify({"bosses": result})
 
+
 @app.route('/api/iceberg/facts/<int:fact_id>/position', methods=['POST'])
 def api_iceberg_fact_update_position(fact_id: int):
     data = request.get_json() or {}
@@ -704,6 +723,7 @@ def api_iceberg_fact_update_position(fact_id: int):
         "position_x": int(position_x),
         "position_y": int(position_y)
     })
+
 
 # --- ЗАПУСК ПРИЛОЖЕНИЯ ---
 

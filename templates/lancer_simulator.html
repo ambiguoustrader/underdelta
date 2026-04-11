@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lancer Simulator — UNDERDELTA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="boss-page-shell">
+        <div class="boss-page-container">
+            <a href="/lancer" class="boss-page-back">← Назад к Lancer</a>
+
+            <div class="glass-card" style="padding: 18px; margin-bottom: 18px;">
+                <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">
+                    Lancer Fight Simulator
+                </h1>
+                <p style="color: #9ca3af;">
+                    Отдельная страница с встраиваемым боем.
+                </p>
+            </div>
+
+            <iframe
+                class="boss-sim-frame"
+                src="{{ url_for('static', filename='games/lancer_boss/index.html') }}">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+    async function markLancerAsDefeated() {
+        const saved = localStorage.getItem('deltarune_user');
+        if (!saved) {
+            alert('Пользователь не найден в localStorage');
+            return;
+        }
+
+        const user = JSON.parse(saved);
+
+        const response = await fetch('/api/bosses/lancer/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.error || 'Не удалось сохранить победу над Лансером');
+            return;
+        }
+
+        if (data.user) {
+            localStorage.setItem('deltarune_user', JSON.stringify(data.user));
+        }
+
+        alert(
+            data.first_victory
+                ? 'Лансер побеждён! Ачивка получена.'
+                : 'Победа уже была сохранена раньше.'
+        );
+
+        window.location.href = '/';
+    }
+
+    window.addEventListener('message', async (event) => {
+        const data = event.data;
+
+        if (
+            data?.type === 'scratch_state' &&
+            data?.key === 'lancer_win' &&
+            data?.value === '1'
+        ) {
+            await markLancerAsDefeated();
+        }
+    });
+    </script>
+</body>
+</html>
