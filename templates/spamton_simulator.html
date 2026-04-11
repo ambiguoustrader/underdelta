@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spamton Simulator - UNDERDELTA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="boss-page-shell">
+        <div class="boss-page-container">
+            <a href="/spamton" class="boss-page-back">← Назад к Spamton</a>
+
+            <div class="glass-card" style="padding: 18px; margin-bottom: 18px;">
+                <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">
+                    Spamton NEO Fight Simulator
+                </h1>
+                <p style="color: #9ca3af;">
+                    Отдельная страница с встраиваемым боем.
+                </p>
+            </div>
+
+            <div
+                id="admin-test-tools"
+                class="hidden"
+                style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;"
+            >
+                <button class="btn-success" onclick="markSpamtonAsDefeated()">
+                    Тест: засчитать победу над Спэмтоном
+                </button>
+
+                <button class="btn-secondary" onclick="markAllBossesAsDefeated()">
+                    Тест: засчитать всех боссов
+                </button>
+            </div>
+
+            <iframe
+                class="boss-sim-frame"
+                src="{{ url_for('static', filename='games/spamton_boss/index.html') }}">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+    function getSavedUser() {
+        const raw = localStorage.getItem('deltarune_user');
+        if (!raw) return null;
+
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveUser(user) {
+        if (user) {
+            localStorage.setItem('deltarune_user', JSON.stringify(user));
+        }
+    }
+
+    function updateAdminToolsVisibility() {
+        const tools = document.getElementById('admin-test-tools');
+        const user = getSavedUser();
+
+        if (user && user.is_admin) {
+            tools.classList.remove('hidden');
+        } else {
+            tools.classList.add('hidden');
+        }
+    }
+
+    async function completeBoss(slug, title, silent = false) {
+        const user = getSavedUser();
+
+        if (!user) {
+            alert('Пользователь не найден в localStorage');
+            return null;
+        }
+
+        const response = await fetch('/api/bosses/' + slug + '/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.error || ('Не удалось сохранить победу над ' + title));
+            return null;
+        }
+
+        if (data.user) {
+            saveUser(data.user);
+        }
+
+        if (!silent) {
+            alert(
+                data.first_victory
+                    ? title + ' побеждён! Ачивка получена.'
+                    : 'Победа уже была сохранена раньше.'
+            );
+        }
+
+        return data;
+    }
+
+    async function markSpamtonAsDefeated() {
+        const data = await completeBoss('spamton', 'Спэмтон NEO');
+        if (data) {
+            window.location.href = '/';
+        }
+    }
+
+    async function markAllBossesAsDefeated() {
+        const bosses = [
+            ['lancer', 'Lancer'],
+            ['spamton', 'Spamton NEO'],
+            ['sans', 'Sans']
+        ];
+
+        for (const [slug, title] of bosses) {
+            const result = await completeBoss(slug, title, true);
+            if (!result) {
+                return;
+            }
+        }
+
+        alert('Все боссы засчитаны.');
+        window.location.href = '/';
+    }
+
+    window.addEventListener('message', async (event) => {
+        const data = event.data;
+
+        if (
+            data?.type === 'scratch_state' &&
+            data?.key === 'spamton_win' &&
+            data?.value === '1'
+        ) {
+            const result = await completeBoss('spamton', 'Спэмтон NEO', true);
+            if (result) {
+                alert(
+                    result.first_victory
+                        ? 'Спэмтон NEO побеждён! Ачивка получена.'
+                        : 'Победа над Спэмтоном уже была сохранена раньше.'
+                );
+                window.location.href = '/';
+            }
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', updateAdminToolsVisibility);
+    </script>
+</body>
+</html>

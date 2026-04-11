@@ -525,7 +525,9 @@ const bossesCatalog = [
         difficulty: 2,
         rewardXp: 750,
         route: '/spamton',
-        buttonText: 'Открыть страницу'
+        extraRoute: '/spamton-simulator',
+        buttonText: 'Страница босса',
+        extraButtonText: 'Симулятор боя'
     },
     {
         slug: 'sans',

@@ -255,22 +255,30 @@ def api_complete_boss(slug: str):
             (user_id, boss['id'])
         )
 
-    if first_victory:
-        db.execute(
-            '''
-            UPDATE users
-            SET xp = xp + ?, wins = wins + 1
-            WHERE id = ?
-            ''',
-            (boss['reward_xp'], user_id)
-        )
+        if first_victory:
+            db.execute(
+                '''
+                UPDATE users
+                SET xp = xp + ?, wins = wins + 1
+                WHERE id = ?
+                ''',
+                (boss['reward_xp'], user_id)
+            )
 
-        if slug == 'sans':
-            give_achievement(user_id, 'boss_sans')
-        elif slug == 'lancer':
-            give_achievement(user_id, 'boss_lancer')
-        elif slug == 'spamton':
-            give_achievement(user_id, 'boss_spamton')
+            if slug == 'lancer':
+                give_achievement(user_id, 'boss_lancer')
+            elif slug == 'spamton':
+                give_achievement(user_id, 'boss_spamton')
+            elif slug == 'sans':
+                give_achievement(user_id, 'boss_sans')
+
+            db.execute(
+                '''
+                INSERT INTO user_history (user_id, action_text, action_date)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ''',
+                (user_id, f'Победил босса {boss_name}')
+            )
 
         defeated_count = query_db(
             'SELECT COUNT(*) AS cnt FROM user_boss_progress WHERE user_id = ? AND is_defeated = 1',
@@ -281,15 +289,7 @@ def api_complete_boss(slug: str):
         if defeated_count >= 3:
             give_achievement(user_id, 'all_bosses')
 
-        db.execute(
-            '''
-            INSERT INTO user_history (user_id, action_text, action_date)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            ''',
-            (user_id, f'Победил босса {boss_name}')
-        )
-
-    db.commit()
+        db.commit()
 
     user_data = build_user_payload(user_id)
     return jsonify({
@@ -353,6 +353,20 @@ def sans_simulator():
         abort(404)
 
     return render_template('sans_simulator.html', boss=dict(boss))
+
+
+@app.route('/spamton-simulator')
+def spamton_simulator():
+    boss = query_db(
+        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        ['Spamton NEO'],
+        one=True
+    )
+
+    if not boss:
+        abort(404)
+
+    return render_template('spamton_simulator.html', boss=dict(boss))
 
 
 @app.route('/lancer-simulator')

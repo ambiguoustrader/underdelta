@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lancer Simulator — UNDERDELTA</title>
+    <title>Lancer Simulator - UNDERDELTA</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -20,6 +20,20 @@
                 </p>
             </div>
 
+            <div
+                id="admin-test-tools"
+                class="hidden"
+                style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;"
+            >
+                <button class="btn-success" onclick="markLancerAsDefeated()">
+                    Тест: засчитать победу над Лансером
+                </button>
+
+                <button class="btn-secondary" onclick="markAllBossesAsDefeated()">
+                    Тест: засчитать всех боссов
+                </button>
+            </div>
+
             <iframe
                 class="boss-sim-frame"
                 src="{{ url_for('static', filename='games/lancer_boss/index.html') }}">
@@ -28,16 +42,43 @@
     </div>
 
     <script>
-    async function markLancerAsDefeated() {
-        const saved = localStorage.getItem('deltarune_user');
-        if (!saved) {
+    function getSavedUser() {
+        const raw = localStorage.getItem('deltarune_user');
+        if (!raw) return null;
+
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveUser(user) {
+        if (user) {
+            localStorage.setItem('deltarune_user', JSON.stringify(user));
+        }
+    }
+
+    function updateAdminToolsVisibility() {
+        const tools = document.getElementById('admin-test-tools');
+        const user = getSavedUser();
+
+        if (user && user.is_admin) {
+            tools.classList.remove('hidden');
+        } else {
+            tools.classList.add('hidden');
+        }
+    }
+
+    async function completeBoss(slug, title, silent = false) {
+        const user = getSavedUser();
+
+        if (!user) {
             alert('Пользователь не найден в localStorage');
-            return;
+            return null;
         }
 
-        const user = JSON.parse(saved);
-
-        const response = await fetch('/api/bosses/lancer/complete', {
+        const response = await fetch('/api/bosses/' + slug + '/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id })
@@ -46,20 +87,47 @@
         const data = await response.json();
 
         if (!response.ok) {
-            alert(data.error || 'Не удалось сохранить победу над Лансером');
-            return;
+            alert(data.error || ('Не удалось сохранить победу над ' + title));
+            return null;
         }
 
         if (data.user) {
-            localStorage.setItem('deltarune_user', JSON.stringify(data.user));
+            saveUser(data.user);
         }
 
-        alert(
-            data.first_victory
-                ? 'Лансер побеждён! Ачивка получена.'
-                : 'Победа уже была сохранена раньше.'
-        );
+        if (!silent) {
+            alert(
+                data.first_victory
+                    ? title + ' побеждён! Ачивка получена.'
+                    : 'Победа уже была сохранена раньше.'
+            );
+        }
 
+        return data;
+    }
+
+    async function markLancerAsDefeated() {
+        const data = await completeBoss('lancer', 'Лансер');
+        if (data) {
+            window.location.href = '/';
+        }
+    }
+
+    async function markAllBossesAsDefeated() {
+        const bosses = [
+            ['lancer', 'Lancer'],
+            ['spamton', 'Spamton NEO'],
+            ['sans', 'Sans']
+        ];
+
+        for (const [slug, title] of bosses) {
+            const result = await completeBoss(slug, title, true);
+            if (!result) {
+                return;
+            }
+        }
+
+        alert('Все боссы засчитаны.');
         window.location.href = '/';
     }
 
@@ -71,9 +139,19 @@
             data?.key === 'lancer_win' &&
             data?.value === '1'
         ) {
-            await markLancerAsDefeated();
+            const result = await completeBoss('lancer', 'Лансер', true);
+            if (result) {
+                alert(
+                    result.first_victory
+                        ? 'Лансер побеждён! Ачивка получена.'
+                        : 'Победа над Лансером уже была сохранена раньше.'
+                );
+                window.location.href = '/';
+            }
         }
     });
+
+    document.addEventListener('DOMContentLoaded', updateAdminToolsVisibility);
     </script>
 </body>
 </html>

@@ -19,13 +19,20 @@
                     Отдельная страница с встраиваемым боем.
                 </p>
             </div>
-            <button
-                class="btn-success"
-                onclick="markSansAsDefeated()"
-                style="margin-bottom: 16px;"
+
+            <div
+                id="admin-test-tools"
+                class="hidden"
+                style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;"
             >
-                Тест: засчитать победу над Сансом
-            </button>
+                <button class="btn-success" onclick="markSansAsDefeated()">
+                    Тест: засчитать победу над Сансом
+                </button>
+
+                <button class="btn-secondary" onclick="markAllBossesAsDefeated()">
+                    Тест: засчитать всех боссов
+                </button>
+            </div>
 
             <iframe
                 class="boss-sim-frame"
@@ -35,16 +42,43 @@
     </div>
 
     <script>
-    async function markSansAsDefeated() {
-        const saved = localStorage.getItem('deltarune_user');
-        if (!saved) {
+    function getSavedUser() {
+        const raw = localStorage.getItem('deltarune_user');
+        if (!raw) return null;
+
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveUser(user) {
+        if (user) {
+            localStorage.setItem('deltarune_user', JSON.stringify(user));
+        }
+    }
+
+    function updateAdminToolsVisibility() {
+        const tools = document.getElementById('admin-test-tools');
+        const user = getSavedUser();
+
+        if (user && user.is_admin) {
+            tools.classList.remove('hidden');
+        } else {
+            tools.classList.add('hidden');
+        }
+    }
+
+    async function completeBoss(slug, title, silent = false) {
+        const user = getSavedUser();
+
+        if (!user) {
             alert('Пользователь не найден в localStorage');
-            return;
+            return null;
         }
 
-        const user = JSON.parse(saved);
-
-        const response = await fetch('/api/bosses/sans/complete', {
+        const response = await fetch('/api/bosses/' + slug + '/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id })
@@ -53,21 +87,48 @@
         const data = await response.json();
 
         if (!response.ok) {
-            alert(data.error || 'Не удалось сохранить победу');
-            return;
+            alert(data.error || ('Не удалось сохранить победу над ' + title));
+            return null;
         }
 
         if (data.user) {
-            localStorage.setItem('deltarune_user', JSON.stringify(data.user));
+            saveUser(data.user);
         }
 
-        alert(
-            data.first_victory
-                ? 'Санс побеждён! Ачивка получена.'
-                : 'Победа уже была сохранена раньше.'
-        );
+        if (!silent) {
+            alert(
+                data.first_victory
+                    ? title + ' побеждён! Ачивка получена.'
+                    : 'Победа уже была сохранена раньше.'
+            );
+        }
 
-        window.location.href = '/?section=bosses';
+        return data;
+    }
+
+    async function markSansAsDefeated() {
+        const data = await completeBoss('sans', 'Санс');
+        if (data) {
+            window.location.href = '/';
+        }
+    }
+
+    async function markAllBossesAsDefeated() {
+        const bosses = [
+            ['lancer', 'Lancer'],
+            ['spamton', 'Spamton NEO'],
+            ['sans', 'Sans']
+        ];
+
+        for (const [slug, title] of bosses) {
+            const result = await completeBoss(slug, title, true);
+            if (!result) {
+                return;
+            }
+        }
+
+        alert('Все боссы засчитаны.');
+        window.location.href = '/';
     }
 
     window.addEventListener('message', async (event) => {
@@ -76,9 +137,19 @@
         }
 
         if (event.data?.type === 'boss_win' && event.data?.boss === 'sans') {
-            await markSansAsDefeated();
+            const result = await completeBoss('sans', 'Санс', true);
+            if (result) {
+                alert(
+                    result.first_victory
+                        ? 'Санс побеждён! Ачивка получена.'
+                        : 'Победа уже была сохранена раньше.'
+                );
+                window.location.href = '/';
+            }
         }
     });
+
+    document.addEventListener('DOMContentLoaded', updateAdminToolsVisibility);
     </script>
 </body>
 </html>
