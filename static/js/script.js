@@ -283,7 +283,7 @@ function pokazatDostizheniya(containerId) {
         { id: 'first_question', icon: '🎯', name: 'Первый вопрос', desc: 'Ответьте на первый вопрос' },
         { id: 'ten_questions', icon: '📚', name: 'Начинающий', desc: 'Решите 10 вопросов' },
         { id: 'fifty_questions', icon: '🔥', name: 'Упорный', desc: 'Решите 50 вопросов' },
-        { id: 'boss_jevil', icon: '🃏', name: 'Победитель Джевила', desc: 'Победите Jevil' },
+        { id: 'boss_lancer', icon: '♞', name: 'Победитель Лансера', desc: 'Победите Lancer' },
         { id: 'boss_spamton', icon: '🤖', name: 'Победитель Спэмтона', desc: 'Победите Spamton NEO' },
         { id: 'boss_sans', icon: '💀', name: 'Победитель Санса', desc: 'Победите Sans' },
         { id: 'all_bosses', icon: '🏆', name: 'Истребитель боссов', desc: 'Победите всех боссов' },
@@ -513,7 +513,9 @@ const bossesCatalog = [
         difficulty: 1,
         rewardXp: 500,
         route: '/lancer',
-        buttonText: 'Открыть страницу'
+        extraRoute: '/lancer-simulator',
+        buttonText: 'Страница босса',
+        extraButtonText: 'Симулятор боя'
     },
     {
         slug: 'spamton',
