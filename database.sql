@@ -41,23 +41,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     subject TEXT NOT NULL,
-    difficulty TEXT NOT NULL,
+    difficulty TEXT,
     topic TEXT,
     question TEXT NOT NULL,
     options TEXT NOT NULL,
     answer TEXT NOT NULL,
     hint TEXT DEFAULT '',
     created_by INTEGER,
-    generated_by_llm INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT,
-    views_count INTEGER DEFAULT 0,
-    attempts_count INTEGER DEFAULT 0,
-    success_rate REAL DEFAULT 0.0,
-    tags TEXT DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
-
 CREATE TABLE IF NOT EXISTS quiz_attempts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -112,7 +105,7 @@ CREATE TABLE IF NOT EXISTS iceberg_facts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 5),
+    level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 9),
     position_x INTEGER,
     position_y INTEGER,
     image_url TEXT,

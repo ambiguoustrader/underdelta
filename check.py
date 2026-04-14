@@ -739,7 +739,179 @@ def api_iceberg_fact_update_position(fact_id: int):
     })
 
 
-# --- ЗАПУСК ПРИЛОЖЕНИЯ ---
+@app.route('/api/quiz/start', methods=['POST'])
+def start_quiz():
+    """Запуск викторины - получение случайных задач"""
+    user_id = request.args.get('user_id', type=int)
+    subject = request.args.get('subject', 'all')
+    difficulty = request.args.get('difficulty', 'all')
+    count = request.args.get('count', 5, type=int)
+
+    # Формируем SQL запрос с фильтрами
+    query = "SELECT * FROM tasks WHERE 1=1"
+    params = []
+
+    if subject != 'all':
+        query += " AND subject = ?"
+        params.append(subject)
+    if difficulty != 'all':
+        query += " AND difficulty = ?"
+        params.append(difficulty)
+
+    # Добавляем случайную сортировку (SQLite: RANDOM(), MySQL/PostgreSQL: RAND()/RANDOM())
+    query += " ORDER BY RANDOM() LIMIT ?"
+    params.append(count)
+
+    rows = query_db(query, params)
+
+    if not rows:
+        return jsonify({"error": "Нет задач по заданным критериям"}), 404
+
+    tasks = []
+    for row in rows:
+        tasks.append({
+            'id': row['id'],
+            'subject': row['subject'],
+            'difficulty': row['difficulty'],
+            'topic': row['topic'],
+            'question': row['question'],
+            'options': json.loads(row['options']) if row['options'] else [],
+            'answer': row['answer'],
+            'hint': row['hint'] or ''
+        })
+
+    return jsonify({
+        "tasks": tasks,
+        "count": len(tasks)
+    })
+
+
+@app.route('/api/quiz/result', methods=['POST'])
+def save_quiz_result():
+    """Сохранение результатов викторины"""
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    tasks_solved = data.get('tasks_solved', 0)
+    correct_count = data.get('correct_count', 0)
+    xp_earned = data.get('xp_earned', 0)
+
+    if not user_id:
+        return jsonify({"error": "Не указан user_id"}), 400
+
+    # Обновляем статистику пользователя
+    db = get_db()
+    db.execute('''
+        UPDATE users 
+        SET solved_count = solved_count + ?,
+            correct_count = correct_count + ?,
+            xp = xp + ?
+        WHERE id = ?
+    ''', (tasks_solved, correct_count, xp_earned, user_id))
+
+    # Добавляем в историю
+    db.execute('''
+        INSERT INTO user_history (user_id, action_text, action_date)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+    ''', (user_id, f'Викторина: {correct_count}/{tasks_solved} правильных'))
+
+    # Проверяем достижения
+    user = query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
+    if user:
+        # За первый вопрос
+        if user['solved_count'] == 0 and tasks_solved > 0:
+            give_achievement(user_id, 'first_question')
+        # За 10 вопросов
+        if user['solved_count'] + tasks_solved >= 10:
+            give_achievement(user_id, 'ten_questions')
+        # За 50 вопросов
+        if user['solved_count'] + tasks_solved >= 50:
+            give_achievement(user_id, 'fifty_questions')
+
+    db.commit()
+
+    # Возвращаем обновленные данные пользователя
+    user_data = build_user_payload(user_id)
+    return jsonify({
+        "success": True,
+        "user": user_data
+    })
+
+
+@app.route('/api/endless/best', methods=['GET'])
+def get_endless_best():
+    """Получение лучшего результата бесконечного режима"""
+    user_id = request.args.get('user_id', type=int)
+
+    if not user_id:
+        return jsonify({"error": "Не указан user_id"}), 400
+
+    record = query_db('''
+        SELECT MAX(time_survived) as best_time, MAX(score) as best_score
+        FROM endless_mode_records 
+        WHERE user_id = ?
+    ''', [user_id], one=True)
+
+    if record and record['best_time']:
+        return jsonify({
+            "best_time": record['best_time'],
+            "best_score": record['best_score'] or 0
+        })
+
+    return jsonify({
+        "best_time": 0,
+        "best_score": 0
+    })
+
+
+@app.route('/api/endless/result', methods=['POST'])
+def save_endless_result():
+    """Сохранение результата бесконечного режима"""
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    time_survived = data.get('time_survived', 0)
+    correct_answers = data.get('correct_answers', 0)
+    xp_earned = data.get('xp_earned', 0)
+
+    if not user_id:
+        return jsonify({"error": "Не указан user_id"}), 400
+
+    # Сохраняем запись
+    db = get_db()
+    db.execute('''
+        INSERT INTO endless_mode_records (user_id, time_survived, score, created_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ''', (user_id, time_survived, correct_answers))
+
+    # Начисляем XP
+    db.execute('''
+        UPDATE users SET xp = xp + ? WHERE id = ?
+    ''', (xp_earned, user_id))
+
+    # Добавляем в историю
+    db.execute('''
+        INSERT INTO user_history (user_id, action_text, action_date)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+    ''', (user_id, f'Бесконечный режим: {format_time(time_survived)} времени, {correct_answers} правильных'))
+
+    # Достижение за 5 минут (300 секунд)
+    if time_survived >= 300:
+        give_achievement(user_id, 'endless_master')
+
+    db.commit()
+
+    user_data = build_user_payload(user_id)
+    return jsonify({
+        "success": True,
+        "user": user_data
+    })
+
+
+def format_time(seconds):
+    """Форматирование секунд в MM:SS"""
+    minutes = seconds // 60
+    secs = seconds % 60
+    return f"{minutes:02d}:{secs:02d}"
+
 
 if __name__ == '__main__':
     app.run(port=8080, host='127.0.0.1', debug=True)

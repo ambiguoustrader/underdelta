@@ -1122,3 +1122,12 @@ body.dancers-visible .dancer{
 body:not(.show-auth-dancers) .dancer {
     display: none !important;
 }
+.fact-btn.level-6 { background: rgba(220,38,38,0.3); border-color: #dc2626; color: #fecaca; }
+.fact-btn.level-7 { background: rgba(153,27,27,0.4); border-color: #991b1b; color: #fca5a5; box-shadow: 0 0 10px rgba(153,27,27,0.5); }
+.fact-btn.level-8 { background: rgba(88,28,135,0.4); border-color: #7c3aed; color: #ddd6fe; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+.fact-btn.level-9 { background: rgba(0,0,0,0.6); border-color: #000; color: #f87171; box-shadow: 0 0 20px rgba(220,38,38,0.6); animation: pulse 2s infinite; }
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(220,38,38,0.6); }
+    50% { box-shadow: 0 0 30px rgba(220,38,38,0.9); }
+}

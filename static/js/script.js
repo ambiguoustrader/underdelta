@@ -101,9 +101,44 @@ function getLevelColor(level) {
         2: { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', text: '#3b82f6', label: 'Уровень 2' },
         3: { bg: 'rgba(168,85,247,0.2)', border: '#a855f7', text: '#a855f7', label: 'Уровень 3' },
         4: { bg: 'rgba(245,158,11,0.2)', border: '#f59e0b', text: '#f59e0b', label: 'Уровень 4' },
-        5: { bg: 'rgba(239,68,68,0.2)', border: '#ef4444', text: '#ef4444', label: 'Уровень 5' }
+        5: { bg: 'rgba(239,68,68,0.2)', border: '#ef4444', text: '#ef4444', label: 'Уровень 5' },
+        6: { bg: 'rgba(220,38,38,0.25)', border: '#dc2626', text: '#f87171', label: 'Уровень 6' },
+        7: { bg: 'rgba(153,27,27,0.3)', border: '#991b1b', text: '#fca5a5', label: 'Уровень 7' },
+        8: { bg: 'rgba(88,28,135,0.35)', border: '#7c3aed', text: '#c4b5fd', label: 'Уровень 8' },
+        9: { bg: 'rgba(0,0,0,0.5)', border: '#000', text: '#ef4444', label: 'Уровень 9' }
     };
     return colors[level] || colors[1];
+}
+
+function renderIcebergList() {
+    let konteyner = document.getElementById('iceberg-facts-list');
+    let html = '';
+
+    let levels = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+    levels.forEach(level => {
+        let faktyUrovnya = ibergFakty.filter(f => f.level === level);
+        if (faktyUrovnya.length === 0) return;
+
+        let color = getLevelColor(level);
+        html += `<div style="font-size: 0.75rem; font-weight: 700; color: ${color.text}; margin-top: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">
+            ${color.label}
+        </div>`;
+
+        faktyUrovnya.forEach(fact => {
+            html += `
+                <div onclick="otkrytFakt(${JSON.stringify(fact).replace(/"/g, '&quot;')})"
+                     style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; border-left: 3px solid ${color.border};"
+                     onmouseover="this.style.background='${color.bg}'"
+                     onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                    <span style="font-size: 0.9rem;">${fact.title}</span>
+                    <span style="font-size: 0.75rem; color: ${color.text}; margin-left: 12px; flex-shrink: 0;">Ур. ${fact.level}</span>
+                </div>
+            `;
+        });
+    });
+
+    konteyner.innerHTML = html;
 }
 
 // ============================================
