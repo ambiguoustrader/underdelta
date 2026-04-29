@@ -39,7 +39,6 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
 
-    # Пользователи
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,

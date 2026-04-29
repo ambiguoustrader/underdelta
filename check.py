@@ -24,27 +24,21 @@ def parse_options(raw):
         return [s.strip() for s in str(raw).split('|') if s.strip()]
 
 def get_db():
-    """Открывает новое подключение к БД, если его еще нет для текущего запроса."""
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
-        # Эта строка позволяет получать результаты из БД в виде словарей, а не кортежей
         db.row_factory = sqlite3.Row
     return db
 
 
 @app.teardown_appcontext
 def close_connection(exception):
-    """Закрывает подключение к БД после обработки запроса."""
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
 
-# --- Вспомогательные функции ---
-
 def query_db(query, args=(), one=False):
-    """Вспомогательная функция для выполнения запросов к БД."""
     cur = get_db().execute(query, args)
     rv = cur.fetchall()
     cur.close()
@@ -59,7 +53,6 @@ BOSS_SLUGS = {
 
 
 def hash_password(password):
-    """Хэширует пароль так же, как в вашем database.py."""
     s = "moy_secret_sol_2024"
     return hashlib.sha256((password + s).encode()).hexdigest()
 
@@ -113,7 +106,6 @@ def give_achievement(user_id: int, achievement_id: str) -> None:
     db.commit()
 
 
-# --- МАРШРУТЫ ---
 
 @app.route('/')
 def index():
@@ -269,41 +261,38 @@ def api_complete_boss(slug: str):
             (user_id, boss['id'])
         )
 
-        if first_victory:
-            db.execute(
-                '''
-                UPDATE users
-                SET xp = xp + ?, wins = wins + 1
-                WHERE id = ?
-                ''',
-                (boss['reward_xp'], user_id)
-            )
+    # ↓↓↓ ВСЁ ЭТО ДОЛЖНО БЫТЬ ВНЕ if/else ↓↓↓
+    if first_victory:
+        db.execute(
+            'UPDATE users SET xp = xp + ?, wins = wins + 1 WHERE id = ?',
+            (boss['reward_xp'], user_id)
+        )
 
-            if slug == 'lancer':
-                give_achievement(user_id, 'boss_lancer')
-            elif slug == 'spamton': # SPAMTON UPDATE
-                give_achievement(user_id, 'boss_spamton')
-            elif slug == 'sans':
-                give_achievement(user_id, 'boss_sans')
+        if slug == 'lancer':
+            give_achievement(user_id, 'boss_lancer')
+        elif slug == 'spamton':
+            give_achievement(user_id, 'boss_spamton')
+        elif slug == 'sans':
+            give_achievement(user_id, 'boss_sans')
 
-            db.execute(
-                '''
-                INSERT INTO user_history (user_id, action_text, action_date)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                ''',
-                (user_id, f'Победил босса {boss_name}')
-            )
+        db.execute(
+            '''
+            INSERT INTO user_history (user_id, action_text, action_date)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''',
+            (user_id, f'Победил босса {boss_name}')
+        )
 
-        defeated_count = query_db(
-            'SELECT COUNT(*) AS cnt FROM user_boss_progress WHERE user_id = ? AND is_defeated = 1',
-            [user_id],
-            one=True
-        )['cnt']
+    defeated_count = query_db(
+        'SELECT COUNT(*) AS cnt FROM user_boss_progress WHERE user_id = ? AND is_defeated = 1',
+        [user_id],
+        one=True
+    )['cnt']
 
-        if defeated_count >= 3:
-            give_achievement(user_id, 'all_bosses')
+    if defeated_count >= 3:
+        give_achievement(user_id, 'all_bosses')
 
-        db.commit()
+    db.commit()
 
     user_data = build_user_payload(user_id)
     return jsonify({
@@ -311,7 +300,6 @@ def api_complete_boss(slug: str):
         "first_victory": first_victory,
         "user": user_data
     })
-
 
 @app.route('/lancer')
 def lancer_page():
@@ -397,7 +385,6 @@ def lancer_simulator():
     return render_template('lancer_simulator.html', boss=dict(boss))
 
 
-# --- API МАРШРУТЫ ---
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
@@ -444,7 +431,6 @@ def api_login():
     return jsonify({"success": True, "user": full_user})
 
 
-# --- ADMIN API ---
 
 def ensure_admin(admin_id: int):
     admin = query_db('SELECT * FROM users WHERE id = ?', [admin_id], one=True)
@@ -755,13 +741,11 @@ def api_iceberg_fact_update_position(fact_id: int):
 
 @app.route('/api/quiz/start', methods=['POST'])
 def start_quiz():
-    """Запуск викторины - получение случайных задач"""
     user_id = request.args.get('user_id', type=int)
     subject = request.args.get('subject', 'all')
     difficulty = request.args.get('difficulty', 'all')
     count = request.args.get('count', 5, type=int)
 
-    # Формируем SQL запрос с фильтрами
     query = "SELECT * FROM tasks WHERE 1=1"
     params = []
 
@@ -772,7 +756,6 @@ def start_quiz():
         query += " AND difficulty = ?"
         params.append(difficulty)
 
-    # Добавляем случайную сортировку (SQLite: RANDOM(), MySQL/PostgreSQL: RAND()/RANDOM())
     query += " ORDER BY RANDOM() LIMIT ?"
     params.append(count)
 
@@ -802,7 +785,6 @@ def start_quiz():
 
 @app.route('/api/quiz/result', methods=['POST'])
 def save_quiz_result():
-    """Сохранение результатов викторины"""
     data = request.get_json() or {}
     user_id = data.get('user_id')
     tasks_solved = data.get('tasks_solved', 0)
@@ -812,7 +794,6 @@ def save_quiz_result():
     if not user_id:
         return jsonify({"error": "Не указан user_id"}), 400
 
-    # Обновляем статистику пользователя
     db = get_db()
     db.execute('''
         UPDATE users 
@@ -822,13 +803,11 @@ def save_quiz_result():
         WHERE id = ?
     ''', (tasks_solved, correct_count, xp_earned, user_id))
 
-    # Добавляем в историю
     db.execute('''
         INSERT INTO user_history (user_id, action_text, action_date)
         VALUES (?, ?, CURRENT_TIMESTAMP)
     ''', (user_id, f'Викторина: {correct_count}/{tasks_solved} правильных'))
 
-    # Проверяем достижения
     user = query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
     if user:
         # За первый вопрос
@@ -843,7 +822,6 @@ def save_quiz_result():
 
     db.commit()
 
-    # Возвращаем обновленные данные пользователя
     user_data = build_user_payload(user_id)
     return jsonify({
         "success": True,
@@ -853,7 +831,6 @@ def save_quiz_result():
 
 @app.route('/api/endless/best', methods=['GET'])
 def get_endless_best():
-    """Получение лучшего результата бесконечного режима"""
     user_id = request.args.get('user_id', type=int)
 
     if not user_id:
@@ -879,7 +856,6 @@ def get_endless_best():
 
 @app.route('/api/endless/result', methods=['POST'])
 def save_endless_result():
-    """Сохранение результата бесконечного режима"""
     data = request.get_json() or {}
     user_id = data.get('user_id')
     time_survived = data.get('time_survived', 0)
@@ -889,25 +865,21 @@ def save_endless_result():
     if not user_id:
         return jsonify({"error": "Не указан user_id"}), 400
 
-    # Сохраняем запись
     db = get_db()
     db.execute('''
         INSERT INTO endless_mode_records (user_id, time_survived, score, created_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
     ''', (user_id, time_survived, correct_answers))
 
-    # Начисляем XP
     db.execute('''
         UPDATE users SET xp = xp + ? WHERE id = ?
     ''', (xp_earned, user_id))
 
-    # Добавляем в историю
     db.execute('''
         INSERT INTO user_history (user_id, action_text, action_date)
         VALUES (?, ?, CURRENT_TIMESTAMP)
     ''', (user_id, f'Бесконечный режим: {format_time(time_survived)} времени, {correct_answers} правильных'))
 
-    # Достижение за 5 минут (300 секунд)
     if time_survived >= 300:
         give_achievement(user_id, 'endless_master')
 
@@ -921,7 +893,6 @@ def save_endless_result():
 
 
 def format_time(seconds):
-    """Форматирование секунд в MM:SS"""
     minutes = seconds // 60
     secs = seconds % 60
     return f"{minutes:02d}:{secs:02d}"
