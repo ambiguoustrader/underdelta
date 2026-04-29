@@ -13,11 +13,10 @@ import os
 import threading
 from datetime import datetime
 from functools import wraps
-
+import json
 from flask import Flask, request, jsonify, session, render_template_string, redirect, url_for, flash, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
-from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here-change-in-production"
@@ -25,17 +24,15 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # === КОНФИГ ===
-DB_PATH = "edubattle.db"
+DB_PATH = "database.db"
 HEARTBEAT_INTERVAL = 10
 MAX_NO_RESPONSE_TIME = 15
 
 
-# === ПОМОЩНИКИ БАЗЫ ДАННЫХ ===
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     """Инициализация всех таблиц"""
@@ -155,7 +152,6 @@ def init_db():
         viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # История действий
     c.execute('''CREATE TABLE IF NOT EXISTS history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -163,7 +159,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # Сессии для админки
     c.execute('''CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
         user_id INTEGER,
@@ -960,11 +955,9 @@ def run_heartbeat():
 if __name__ == '__main__':
     init_db()
 
-    # Запускаем heartbeat в отдельном потоке
     heartbeat_thread = threading.Thread(target=run_heartbeat, daemon=True)
     heartbeat_thread.start()
 
-    # Запуск Flask + SocketIO
     print("=" * 50)
     print("EduBattle Flask Server")
     print("API: http://localhost:5000")

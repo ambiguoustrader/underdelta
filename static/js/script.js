@@ -1065,36 +1065,6 @@ function renderIcebergButtons() {
     });
 }
 
-function renderIcebergList() {
-    let konteyner = document.getElementById('iceberg-facts-list');
-    let html = '';
-
-    let levels = [1, 2, 3, 4, 5];
-    levels.forEach(level => {
-        let faktyUrovnya = ibergFakty.filter(f => f.level === level);
-        if (faktyUrovnya.length === 0) return;
-
-        let color = getLevelColor(level);
-        html += `<div style="font-size: 0.75rem; font-weight: 700; color: ${color.text}; margin-top: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">
-            Уровень ${level}
-        </div>`;
-
-        faktyUrovnya.forEach(fact => {
-            html += `
-                <div onclick="otkrytFakt(${JSON.stringify(fact).replace(/"/g, '&quot;')})"
-                     style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;"
-                     onmouseover="this.style.background='rgba(168,85,247,0.08)'"
-                     onmouseout="this.style.background='rgba(255,255,255,0.03)'">
-                    <span style="font-size: 0.9rem;">${fact.title}</span>
-                    <span style="font-size: 0.75rem; color: ${color.text}; margin-left: 12px; flex-shrink: 0;">Ур. ${fact.level}</span>
-                </div>
-            `;
-        });
-    });
-
-    konteyner.innerHTML = html;
-}
-
 async function dobavitFaktInline() {
     const title = document.getElementById('iceberg-fact-title').value.trim();
     const content = document.getElementById('iceberg-fact-content').value.trim();

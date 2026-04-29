@@ -1,13 +1,27 @@
 import sqlite3
 import hashlib
 from flask import Flask, render_template, request, jsonify, g, abort
-
+import json
 DATABASE = 'database.db'
 
 app = Flask(__name__)
 
 
-# --- Управление подключением к БД ---
+def parse_options(raw):
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        try:
+            value = ast.literal_eval(raw)
+            if isinstance(value, (list, tuple)):
+                return list(value)
+        except (ValueError, SyntaxError):
+            pass
+        return [s.strip() for s in str(raw).split('|') if s.strip()]
 
 def get_db():
     """Открывает новое подключение к БД, если его еще нет для текущего запроса."""
@@ -775,7 +789,7 @@ def start_quiz():
             'difficulty': row['difficulty'],
             'topic': row['topic'],
             'question': row['question'],
-            'options': json.loads(row['options']) if row['options'] else [],
+            'options': parse_options(row['options']),
             'answer': row['answer'],
             'hint': row['hint'] or ''
         })
