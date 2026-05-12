@@ -6,7 +6,7 @@
 
 ## Релиз
 
-Актуальный стабильный релиз проекта: [Underdelta v1.0.1](https://github.com/ambiguoustrader/underdelta/releases/tag/v1.0.1).
+Актуальный стабильный релиз проекта: [Underdelta v1.0.0](https://github.com/ambiguoustrader/underdelta/releases/tag/v1.0.0).
 
 ---
 
