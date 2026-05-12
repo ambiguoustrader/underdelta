@@ -9,6 +9,7 @@ let quizIndex = 0;
 let quizPravilno = 0;
 let quizTimer = null;
 let quizSekundy = 30;
+let quizCorrectBySubject = {};
 
 let bossZadachi = [];
 let bossIndex = 0;
@@ -28,6 +29,7 @@ let endlessQTimer = null;
 let endlessQSekundy = 15;
 let endlessLives = 3;
 let endlessActive = false;
+let endlessSubjectStatsDelta = {};
 
 let ibergFakty = [];
 let icebergEditMode = false;
@@ -95,19 +97,156 @@ function formatVremya(sekundy) {
     return (min < 10 ? '0' + min : min) + ':' + (sek < 10 ? '0' + sek : sek);
 }
 
+function normalizovatSubject(subject) {
+    return subject || 'unknown';
+}
+
+function dobavitStatistikuTemy(stats, subject, solvedInc, correctInc) {
+    const key = normalizovatSubject(subject);
+
+    if (!stats[key]) {
+        stats[key] = { solved: 0, correct: 0 };
+    }
+
+    stats[key].solved += solvedInc || 0;
+    stats[key].correct += correctInc || 0;
+}
+
+function sobratStatistikuViktoriny() {
+    const stats = {};
+
+    quizZadachi.forEach(zadacha => {
+        dobavitStatistikuTemy(stats, zadacha.subject, 1, 0);
+    });
+
+    Object.keys(quizCorrectBySubject).forEach(subject => {
+        dobavitStatistikuTemy(stats, subject, 0, quizCorrectBySubject[subject]);
+    });
+
+    return stats;
+}
+
+const ICEBERG_LEVELS = {
+    1: {
+        bg: 'rgba(16,185,129,0.2)',
+        buttonBg: 'rgba(16,185,129,0.85)',
+        hoverBg: 'rgba(16,185,129,1)',
+        glow: 'rgba(16,185,129,0.8)',
+        border: '#10b981',
+        text: '#10b981',
+        label: 'Уровень 1',
+        title: 'Известные факты'
+    },
+    2: {
+        bg: 'rgba(59,130,246,0.2)',
+        buttonBg: 'rgba(59,130,246,0.85)',
+        hoverBg: 'rgba(59,130,246,1)',
+        glow: 'rgba(59,130,246,0.8)',
+        border: '#3b82f6',
+        text: '#3b82f6',
+        label: 'Уровень 2',
+        title: 'Малоизвестное'
+    },
+    3: {
+        bg: 'rgba(168,85,247,0.2)',
+        buttonBg: 'rgba(168,85,247,0.85)',
+        hoverBg: 'rgba(168,85,247,1)',
+        glow: 'rgba(168,85,247,0.8)',
+        border: '#a855f7',
+        text: '#a855f7',
+        label: 'Уровень 3',
+        title: 'Детали'
+    },
+    4: {
+        bg: 'rgba(245,158,11,0.2)',
+        buttonBg: 'rgba(245,158,11,0.85)',
+        hoverBg: 'rgba(245,158,11,1)',
+        glow: 'rgba(245,158,11,0.8)',
+        border: '#f59e0b',
+        text: '#f59e0b',
+        label: 'Уровень 4',
+        title: 'Теории'
+    },
+    5: {
+        bg: 'rgba(239,68,68,0.2)',
+        buttonBg: 'rgba(239,68,68,0.85)',
+        hoverBg: 'rgba(239,68,68,1)',
+        glow: 'rgba(239,68,68,0.8)',
+        border: '#ef4444',
+        text: '#ef4444',
+        label: 'Уровень 5',
+        title: 'Тёмные секреты'
+    },
+    6: {
+        bg: 'rgba(220,38,38,0.25)',
+        buttonBg: 'rgba(220,38,38,0.85)',
+        hoverBg: 'rgba(220,38,38,1)',
+        glow: 'rgba(220,38,38,0.8)',
+        border: '#dc2626',
+        text: '#f87171',
+        label: 'Уровень 6',
+        title: 'Глубина'
+    },
+    7: {
+        bg: 'rgba(153,27,27,0.3)',
+        buttonBg: 'rgba(153,27,27,0.85)',
+        hoverBg: 'rgba(153,27,27,1)',
+        glow: 'rgba(153,27,27,0.8)',
+        border: '#991b1b',
+        text: '#fca5a5',
+        label: 'Уровень 7',
+        title: 'Ниже дна'
+    },
+    8: {
+        bg: 'rgba(88,28,135,0.35)',
+        buttonBg: 'rgba(88,28,135,0.85)',
+        hoverBg: 'rgba(88,28,135,1)',
+        glow: 'rgba(124,58,237,0.8)',
+        border: '#7c3aed',
+        text: '#c4b5fd',
+        label: 'Уровень 8',
+        title: 'Темнота'
+    },
+    9: {
+        bg: 'rgba(0,0,0,0.5)',
+        buttonBg: 'rgba(0,0,0,0.9)',
+        hoverBg: 'rgba(20,0,0,1)',
+        glow: 'rgba(239,68,68,0.85)',
+        border: '#000000',
+        text: '#ef4444',
+        label: 'Уровень 9',
+        title: 'ДОМ'
+    }
+};
+
 function getLevelColor(level) {
-    let colors = {
-        1: { bg: 'rgba(16,185,129,0.2)', border: '#10b981', text: '#10b981', label: 'Уровень 1' },
-        2: { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', text: '#3b82f6', label: 'Уровень 2' },
-        3: { bg: 'rgba(168,85,247,0.2)', border: '#a855f7', text: '#a855f7', label: 'Уровень 3' },
-        4: { bg: 'rgba(245,158,11,0.2)', border: '#f59e0b', text: '#f59e0b', label: 'Уровень 4' },
-        5: { bg: 'rgba(239,68,68,0.2)', border: '#ef4444', text: '#ef4444', label: 'Уровень 5' },
-        6: { bg: 'rgba(220,38,38,0.25)', border: '#dc2626', text: '#f87171', label: 'Уровень 6' },
-        7: { bg: 'rgba(153,27,27,0.3)', border: '#991b1b', text: '#fca5a5', label: 'Уровень 7' },
-        8: { bg: 'rgba(88,28,135,0.35)', border: '#7c3aed', text: '#c4b5fd', label: 'Уровень 8' },
-        9: { bg: 'rgba(0,0,0,0.5)', border: '#000', text: '#ef4444', label: 'Уровень 9' }
-    };
-    return colors[level] || colors[1];
+    return ICEBERG_LEVELS[Number(level)] || ICEBERG_LEVELS[1];
+}
+
+function renderIcebergLegend() {
+    const konteyner = document.getElementById('iceberg-legend');
+
+    if (!konteyner) {
+        return;
+    }
+
+    let html = '';
+
+    Object.keys(ICEBERG_LEVELS).forEach(level => {
+        const color = ICEBERG_LEVELS[level];
+
+        html += `
+            <div class="iceberg-legend-item">
+                <span
+                    class="iceberg-legend-dot"
+                    style="background: ${color.border}; box-shadow: 0 0 8px ${color.glow};"
+                ></span>
+                <span>Уровень ${level} — ${color.title}</span>
+            </div>
+        `;
+    });
+
+    konteyner.innerHTML = html;
 }
 
 function renderIcebergList() {
@@ -157,6 +296,31 @@ function pokazatVhod() {
     document.getElementById('auth-error').classList.add('hidden');
 }
 
+
+function emailPoFormatu(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email);
+}
+
+function proveritEmailPole(inputId) {
+    const input = document.getElementById(inputId);
+    const email = input.value.trim();
+
+    input.setCustomValidity('');
+
+    if (!emailPoFormatu(email)) {
+        input.setCustomValidity('Введите email в формате name@example.com');
+        input.reportValidity();
+        pokazatOshibkuAuth('Введите email в формате name@example.com');
+        return false;
+    }
+
+    return true;
+}
+
+function sbrositOshibkuEmail(input) {
+    input.setCustomValidity('');
+}
+
 function pokazatOshibkuAuth(tekst) {
     let el = document.getElementById('auth-error');
     el.textContent = tekst;
@@ -164,11 +328,15 @@ function pokazatOshibkuAuth(tekst) {
 }
 
 async function vypolnitVhod() {
-    let email = document.getElementById('login-email').value.trim();
+    let email = document.getElementById('login-email').value.trim().toLowerCase();
     let password = document.getElementById('login-password').value;
 
     if (!email || !password) {
         pokazatOshibkuAuth('Заполните все поля');
+        return;
+    }
+
+    if (!proveritEmailPole('login-email')) {
         return;
     }
 
@@ -192,11 +360,15 @@ async function vypolnitVhod() {
 
 async function vypolnitRegistraciyu() {
     let name = document.getElementById('reg-name').value.trim();
-    let email = document.getElementById('reg-email').value.trim();
+    let email = document.getElementById('reg-email').value.trim().toLowerCase();
     let password = document.getElementById('reg-password').value;
 
     if (!name || !email || !password) {
         pokazatOshibkuAuth('Заполните все поля');
+        return;
+    }
+
+    if (!proveritEmailPole('reg-email')) {
         return;
     }
 
@@ -352,12 +524,12 @@ function pokazatIstoriyu() {
     }
 
     let html = '';
-    let items = istoriya.slice(-8).reverse();
+    let items = istoriya.slice(0, 8);
     items.forEach(zapis => {
         html += `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 0.85rem;">
-                <span style="color: #d1d5db;">${zapis.text || zapis.action_text}</span>
-                <span style="color: #6b7280; font-size: 0.75rem; flex-shrink: 0; margin-left: 8px;">${zapis.date || zapis.action_date || ''}</span>
+            <div class="activity-item">
+                <span class="activity-text">${zapis.text || zapis.action_text}</span>
+                <span class="activity-date">${zapis.date || zapis.action_date || ''}</span>
             </div>
         `;
     });
@@ -384,6 +556,7 @@ async function nachatViktorimu() {
         quizZadachi = result.tasks;
         quizIndex = 0;
         quizPravilno = 0;
+        quizCorrectBySubject = {};
 
         document.getElementById('quiz-setup').classList.add('hidden');
         document.getElementById('quiz-results').classList.add('hidden');
@@ -458,6 +631,10 @@ function vybratOtvetQuiz(element, otvet) {
     if (otvet === zadacha.answer) {
         element.classList.add('correct');
         quizPravilno++;
+
+        const subject = normalizovatSubject(zadacha.subject);
+        quizCorrectBySubject[subject] = (quizCorrectBySubject[subject] || 0) + 1;
+
         document.getElementById('quiz-score').textContent = quizPravilno;
     } else {
         element.classList.add('wrong');
@@ -493,7 +670,8 @@ async function zavershitViktorimu() {
                 user_id: tekushiyUser.id,
                 tasks_solved: total,
                 correct_count: quizPravilno,
-                xp_earned: xp
+                xp_earned: xp,
+                subject_stats_delta: sobratStatistikuViktoriny()
             }
         });
 
@@ -533,6 +711,7 @@ function resetViktorimy() {
     quizZadachi = [];
     quizIndex = 0;
     quizPravilno = 0;
+    quizCorrectBySubject = {};
 }
 
 // ============================================
@@ -545,87 +724,98 @@ const bossesCatalog = [
         name: 'Lancer',
         description: 'Лёгкий стартовый босс. Отлично подходит для первого боя.',
         image: '/static/images/bosses/lancer.png',
-        difficulty: 1,
-        rewardXp: 500,
         route: '/lancer',
-        extraRoute: '/lancer-simulator',
-        buttonText: 'Страница босса',
-        extraButtonText: 'Симулятор боя'
+        extraRoute: '/lancer-simulator'
     },
     {
         slug: 'spamton',
         name: 'Spamton NEO',
         description: 'Средний по сложности босс с более агрессивным стилем.',
         image: '/static/images/bosses/BIGSHOT.png',
-        difficulty: 2,
-        rewardXp: 750,
         route: '/spamton',
-        extraRoute: '/spamton-simulator',
-        buttonText: 'Страница босса',
-        extraButtonText: 'Симулятор боя'
+        extraRoute: '/spamton-simulator'
     },
     {
         slug: 'sans',
         name: 'Sans',
         description: 'Самый опасный босс. Для него будет отдельная страница и симулятор.',
         image: '/static/images/bosses/sans.png',
-        difficulty: 3,
-        rewardXp: 1000,
         route: '/sans',
-        extraRoute: '/sans-simulator',
-        buttonText: 'Страница босса',
-        extraButtonText: 'Симулятор боя'
+        extraRoute: '/sans-simulator'
     }
 ];
 
-function zagruzitBossov() {
+function poluchitBossMeta(bossName) {
+    return bossesCatalog.find(b => b.name === bossName) || {
+        slug: String(bossName || '').toLowerCase().replaceAll(' ', '-'),
+        name: bossName || 'Босс',
+        description: 'Босс из базы данных.',
+        image: '/static/images/bosses/sans.png',
+        route: '#',
+        extraRoute: null
+    };
+}
+
+async function zagruzitBossov() {
     document.getElementById('bosses-list').classList.remove('hidden');
     document.getElementById('boss-battle').classList.add('hidden');
     document.getElementById('boss-result').classList.add('hidden');
 
     const konteyner = document.getElementById('bosses-grid');
+    konteyner.innerHTML = '<p style="color: #9ca3af; padding: 20px;">Загрузка боссов...</p>';
 
-    let html = '';
-    bossesCatalog.forEach((boss) => {
-        html += `
-            <div class="boss-link-card boss-difficulty-${boss.difficulty}">
-                <div class="boss-link-image-wrap">
-                    <img src="${boss.image}" alt="${boss.name}" class="boss-link-image">
+    try {
+        const data = await apiZapros('/api/bosses');
+        const bossy = data.bosses || [];
+
+        let html = '';
+        bossy.forEach((boss) => {
+            const meta = poluchitBossMeta(boss.boss_name);
+            const difficulty = Number(boss.difficulty_level || 1);
+            const isActive = Boolean(boss.is_active);
+
+            html += `
+                <div class="boss-link-card boss-difficulty-${difficulty} ${isActive ? '' : 'inactive'}">
+                    <div class="boss-link-image-wrap">
+                        <img src="${boss.boss_image || meta.image}" alt="${boss.boss_name}" class="boss-link-image">
+                    </div>
+
+                    <div class="boss-link-content">
+                        <div class="boss-link-top">
+                            <h3 class="boss-link-title">${boss.boss_name}</h3>
+                            <span class="boss-link-stars">
+                                ${'★'.repeat(difficulty)}${'☆'.repeat(Math.max(0, 3 - difficulty))}
+                            </span>
+                        </div>
+
+                        <p class="boss-link-description">${meta.description}</p>
+
+                        <div class="boss-link-meta">
+                            <span>HP: ${boss.boss_hp}</span>
+                            <span>Награда: +${boss.reward_xp} XP</span>
+                            <span>Маршрут: ${meta.route}</span>
+                        </div>
+
+                        <div class="boss-link-actions">
+                            ${isActive ? `
+                                <a class="btn-primary boss-link-btn" href="${meta.route}">Страница босса</a>
+                                <a class="btn-secondary boss-link-btn" href="${meta.extraRoute}">Симулятор боя</a>
+                            ` : `
+                                <span class="boss-status-pill inactive">Босс неактивен</span>
+                                <a class="btn-secondary boss-link-btn" href="${meta.route}">Открыть недоступную страницу</a>
+                            `}
+                        </div>
+                    </div>
                 </div>
+            `;
+        });
 
-                <div class="boss-link-content">
-                    <div class="boss-link-top">
-                        <h3 class="boss-link-title">${boss.name}</h3>
-                        <span class="boss-link-stars">
-                            ${'★'.repeat(boss.difficulty)}${'☆'.repeat(3 - boss.difficulty)}
-                        </span>
-                    </div>
-
-                    <p class="boss-link-description">${boss.description}</p>
-
-                    <div class="boss-link-meta">
-                        <span>Награда: +${boss.rewardXp} XP</span>
-                        <span>Маршрут: ${boss.route}</span>
-                    </div>
-
-                    <div class="boss-link-actions">
-                        <a class="btn-primary boss-link-btn" href="${boss.route}">
-                            ${boss.buttonText}
-                        </a>
-
-                        ${boss.extraRoute ? `
-                            <a class="btn-secondary boss-link-btn" href="${boss.extraRoute}">
-                                ${boss.extraButtonText}
-                            </a>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    konteyner.innerHTML = html;
+        konteyner.innerHTML = html || '<p style="color: #9ca3af; padding: 20px;">Боссы не найдены</p>';
+    } catch (err) {
+        konteyner.innerHTML = '<p style="color: #ef4444; padding: 20px;">Ошибка загрузки боссов</p>';
+    }
 }
+
 
 async function nachatBossBattle(bossId) {
     try {
@@ -830,6 +1020,7 @@ async function nachatEndless() {
         endlessSekundy = 0;
         endlessLives = 3;
         endlessActive = true;
+        endlessSubjectStatsDelta = {};
 
         document.getElementById('endless-setup').classList.add('hidden');
         document.getElementById('endless-result').classList.add('hidden');
@@ -887,6 +1078,7 @@ function pokazatVoprosEndless() {
         document.getElementById('endless-q-timer').textContent = endlessQSekundy;
         if (endlessQSekundy <= 0) {
             clearInterval(endlessQTimer);
+            dobavitStatistikuTemy(endlessSubjectStatsDelta, zadacha.subject, 1, 0);
             endlessLives--;
             if (endlessLives <= 0) {
                 zavershitEndless();
@@ -908,9 +1100,11 @@ function vybratOtvetEndless(element, otvet) {
     if (otvet === zadacha.answer) {
         element.classList.add('correct');
         endlessPravilno++;
+        dobavitStatistikuTemy(endlessSubjectStatsDelta, zadacha.subject, 1, 1);
     } else {
         element.classList.add('wrong');
         vse.forEach(o => { if (o.textContent === zadacha.answer) o.classList.add('correct'); });
+        dobavitStatistikuTemy(endlessSubjectStatsDelta, zadacha.subject, 1, 0);
         endlessLives--;
     }
 
@@ -944,7 +1138,8 @@ async function zavershitEndless() {
                 user_id: tekushiyUser.id,
                 time_survived: endlessSekundy,
                 correct_answers: endlessPravilno,
-                xp_earned: xp
+                xp_earned: xp,
+                subject_stats_delta: endlessSubjectStatsDelta
             }
         });
 
@@ -975,6 +1170,7 @@ function resetEndless() {
     document.getElementById('endless-setup').classList.remove('hidden');
     document.getElementById('endless-active').classList.add('hidden');
     document.getElementById('endless-result').classList.add('hidden');
+    endlessSubjectStatsDelta = {};
     zagruzitEndlessRekord();
 }
 
@@ -990,6 +1186,7 @@ async function zagruzitAysberg() {
         let data = await apiZapros('/api/iceberg/facts');
         ibergFakty = data.facts || [];
 
+        renderIcebergLegend();
         renderIcebergButtons();
         renderIcebergList();
         updateIcebergAdminTools();
@@ -1046,6 +1243,13 @@ function renderIcebergButtons() {
 
         let btn = document.createElement('button');
         btn.className = 'fact-btn level-' + fact.level;
+
+        const color = getLevelColor(fact.level);
+        btn.style.setProperty('--fact-bg', color.buttonBg);
+        btn.style.setProperty('--fact-hover-bg', color.hoverBg);
+        btn.style.setProperty('--fact-color', color.border);
+        btn.style.setProperty('--fact-glow', color.glow);
+
         btn.style.left = fact.position_x + 'px';
         btn.style.top = fact.position_y + 'px';
         btn.textContent = index + 1;
@@ -1643,15 +1847,23 @@ async function zagruzitAdminBossov() {
 
         let html = '';
         bossy.forEach(b => {
+            const isActive = Boolean(b.is_active);
             html += `
-                <div style="padding: 14px; margin-bottom: 10px; background: rgba(255,255,255,0.03); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div class="admin-boss-row ${isActive ? '' : 'inactive'}">
                     <div>
                         <div style="font-weight: 700;">${b.boss_name}</div>
-                        <div style="font-size: 0.8rem; color: #9ca3af; margin-top: 2px;">HP: ${b.boss_hp} | Сложность: ${'★'.repeat(b.difficulty_level)} | +${b.reward_xp} XP</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af; margin-top: 2px;">
+                            HP: ${b.boss_hp} | Сложность: ${'★'.repeat(b.difficulty_level)} | +${b.reward_xp} XP
+                        </div>
                     </div>
-                    <div style="font-size: 0.8rem; color: ${b.is_active ? '#10b981' : '#ef4444'};">
-                        ${b.is_active ? 'Активен' : 'Неактивен'}
-                    </div>
+                    <button
+                        type="button"
+                        class="boss-status-toggle ${isActive ? 'active' : 'inactive'}"
+                        onclick="toggleBossActive(${b.id})"
+                        title="Нажми, чтобы переключить доступность босса"
+                    >
+                        ${isActive ? 'Активен' : 'Неактивен'}
+                    </button>
                 </div>
             `;
         });
@@ -1661,6 +1873,28 @@ async function zagruzitAdminBossov() {
         konteyner.innerHTML = '<p style="color: #ef4444;">Ошибка загрузки</p>';
     }
 }
+
+async function toggleBossActive(bossId) {
+    try {
+        const result = await apiZapros('/api/admin/bosses/' + bossId + '/toggle', {
+            method: 'POST',
+            body: { admin_id: tekushiyUser.id }
+        });
+
+        if (result.success) {
+            const active = Boolean(result.boss && result.boss.is_active);
+            showToast(active ? 'success' : 'info', active ? 'Босс активирован' : 'Босс отключён');
+            zagruzitAdminBossov();
+
+            if (document.getElementById('section-bosses') && !document.getElementById('section-bosses').classList.contains('hidden')) {
+                zagruzitBossov();
+            }
+        }
+    } catch (err) {
+        showToast('error', 'Ошибка: ' + err.message);
+    }
+}
+
 
 // ============================================
 // ЗАКРЫТИЕ МОДАЛКИ ПО КЛИКУ ВНЕ

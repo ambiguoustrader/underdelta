@@ -2,9 +2,26 @@ import sqlite3
 import hashlib
 from flask import Flask, render_template, request, jsonify, g, abort
 import json
+import ast
+import random
+import os
+import re
 DATABASE = 'database.db'
 
 app = Flask(__name__)
+
+EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$")
+
+
+def normalize_email(value) -> str:
+    return str(value or '').strip().lower()
+
+
+def is_valid_email(value) -> bool:
+    email = normalize_email(value)
+    if len(email) > 254:
+        return False
+    return bool(EMAIL_RE.fullmatch(email))
 
 
 def parse_options(raw):
@@ -50,6 +67,108 @@ BOSS_SLUGS = {
     "spamton": "Spamton NEO",
     "sans": "Sans",
 }
+
+BOSS_DEFAULTS = {
+    "Lancer": {"hp": 540},
+    "Spamton NEO": {"hp": 4809},
+    "Sans": {"hp": 1},
+}
+
+
+def sync_boss_defaults() -> None:
+    """Обновляет важные параметры боссов в уже существующей базе."""
+    if not os.path.exists(DATABASE):
+        return
+
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            for boss_name, defaults in BOSS_DEFAULTS.items():
+                cursor.execute(
+                    'UPDATE boss_battles SET boss_hp = ? WHERE boss_name = ?',
+                    (defaults['hp'], boss_name)
+                )
+            conn.commit()
+    except sqlite3.OperationalError:
+        # Таблица может ещё не существовать при первом создании БД.
+        pass
+
+
+def render_unavailable_page(
+    message: str = 'эта страница недоступна, приятель.',
+    status_code: int = 404,
+):
+    return render_template(
+        'unavailable.html',
+        message=message,
+        status_code=status_code,
+    ), status_code
+
+
+def render_boss_unavailable(slug: str, boss_name: str | None = None):
+    return render_unavailable_page(
+        message='эта страница недоступна, приятель.',
+        status_code=403,
+    )
+
+
+@app.errorhandler(404)
+def handle_not_found(error):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Страница не найдена"}), 404
+
+    return render_unavailable_page(
+        message='эта страница не найдена, приятель.',
+        status_code=404,
+    )
+
+
+@app.errorhandler(403)
+def handle_forbidden(error):
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Доступ запрещён"}), 403
+
+    return render_unavailable_page(
+        message='эта страница недоступна, приятель.',
+        status_code=403,
+    )
+
+
+def load_subject_stats(raw) -> dict:
+    if not raw:
+        return {}
+
+    if isinstance(raw, dict):
+        return raw
+
+    try:
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def merge_subject_stats(current_raw, delta_raw) -> str:
+    stats = load_subject_stats(current_raw)
+
+    if not isinstance(delta_raw, dict):
+        delta_raw = {}
+
+    for subject, delta in delta_raw.items():
+        if not subject or not isinstance(delta, dict):
+            continue
+
+        current = stats.setdefault(subject, {"solved": 0, "correct": 0})
+        current["solved"] = int(current.get("solved") or 0) + max(int(delta.get("solved") or 0), 0)
+        current["correct"] = int(current.get("correct") or 0) + max(int(delta.get("correct") or 0), 0)
+
+        if current["correct"] > current["solved"]:
+            current["correct"] = current["solved"]
+
+    return json.dumps(stats, ensure_ascii=False)
+
+
+sync_boss_defaults()
 
 
 def hash_password(password):
@@ -195,13 +314,16 @@ def boss_page(slug):
         abort(404)
 
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         [boss_name],
         one=True
     )
 
     if not boss:
         abort(404)
+
+    if not boss['is_active']:
+        return render_boss_unavailable(slug, boss['boss_name'])
 
     return render_template('boss_page.html', boss=dict(boss), slug=slug)
 
@@ -304,13 +426,16 @@ def api_complete_boss(slug: str):
 @app.route('/lancer')
 def lancer_page():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Lancer'],
         one=True
     )
 
     if not boss:
         abort(404)
+
+    if not boss['is_active']:
+        return render_boss_unavailable('lancer', boss['boss_name'])
 
     return render_template('boss_page.html', boss=dict(boss), slug='lancer')
 
@@ -318,13 +443,16 @@ def lancer_page():
 @app.route('/spamton')
 def spamton_page():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Spamton NEO'],
         one=True
     )
 
     if not boss:
         abort(404)
+
+    if not boss['is_active']:
+        return render_boss_unavailable('spamton', boss['boss_name'])
 
     return render_template('boss_page.html', boss=dict(boss), slug='spamton')
 
@@ -332,13 +460,16 @@ def spamton_page():
 @app.route('/sans')
 def sans_page():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Sans'],
         one=True
     )
 
     if not boss:
         abort(404)
+
+    if not boss['is_active']:
+        return render_boss_unavailable('sans', boss['boss_name'])
 
     return render_template('boss_page.html', boss=dict(boss), slug='sans')
 
@@ -346,7 +477,7 @@ def sans_page():
 @app.route('/sans-simulator')
 def sans_simulator():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Sans'],
         one=True
     )
@@ -354,13 +485,16 @@ def sans_simulator():
     if not boss:
         abort(404)
 
+    if not boss['is_active']:
+        return render_boss_unavailable('sans', boss['boss_name'])
+
     return render_template('sans_simulator.html', boss=dict(boss))
 
 
 @app.route('/spamton-simulator')
 def spamton_simulator():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Spamton NEO'],
         one=True
     )
@@ -368,13 +502,16 @@ def spamton_simulator():
     if not boss:
         abort(404)
 
+    if not boss['is_active']:
+        return render_boss_unavailable('spamton', boss['boss_name'])
+
     return render_template('spamton_simulator.html', boss=dict(boss))
 
 
 @app.route('/lancer-simulator')
 def lancer_simulator():
     boss = query_db(
-        'SELECT * FROM boss_battles WHERE boss_name = ? AND is_active = 1',
+        'SELECT * FROM boss_battles WHERE boss_name = ?',
         ['Lancer'],
         one=True
     )
@@ -382,27 +519,38 @@ def lancer_simulator():
     if not boss:
         abort(404)
 
+    if not boss['is_active']:
+        return render_boss_unavailable('lancer', boss['boss_name'])
+
     return render_template('lancer_simulator.html', boss=dict(boss))
 
 
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    data = request.get_json()
-    if not data or not data.get('email') or not data.get('password') or not data.get('name'):
+    data = request.get_json() or {}
+
+    name = str(data.get('name') or '').strip()
+    email = normalize_email(data.get('email'))
+    password = data.get('password') or ''
+
+    if not name or not email or not password:
         return jsonify({"success": False, "error": "Заполните все поля"}), 400
 
-    user = query_db('SELECT * FROM users WHERE email = ?', [data['email']], one=True)
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "Введите email в формате name@example.com"}), 400
+
+    user = query_db('SELECT * FROM users WHERE email = ?', [email], one=True)
     if user:
         return jsonify({"success": False, "error": "Пользователь с таким email уже существует"}), 400
 
-    password_hash = hash_password(data['password'])
+    password_hash = hash_password(password)
 
     db_connection = get_db()
     cursor = db_connection.cursor()
     cursor.execute(
         'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-        (data['name'], data['email'], password_hash)
+        (name, email, password_hash)
     )
     db_connection.commit()
 
@@ -414,12 +562,19 @@ def api_register():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    data = request.get_json()
-    if not data or not data.get('email') or not data.get('password'):
+    data = request.get_json() or {}
+
+    email = normalize_email(data.get('email'))
+    password = data.get('password') or ''
+
+    if not email or not password:
         return jsonify({"success": False, "error": "Не указан email или пароль"}), 400
 
-    user = query_db('SELECT * FROM users WHERE email = ?', [data['email']], one=True)
-    password_hash = hash_password(data['password'])
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "Введите email в формате name@example.com"}), 400
+
+    user = query_db('SELECT * FROM users WHERE email = ?', [email], one=True)
+    password_hash = hash_password(password)
 
     if not user or user['password_hash'] != password_hash:
         return jsonify({"success": False, "error": "Неверный email или пароль"}), 401
@@ -689,6 +844,45 @@ def api_bosses_list():
     return jsonify({"bosses": result})
 
 
+@app.route('/api/admin/bosses/<int:boss_id>/toggle', methods=['POST'])
+def api_admin_toggle_boss(boss_id: int):
+    data = request.get_json() or {}
+    admin_id = data.get('admin_id')
+
+    if not admin_id:
+        return jsonify({"error": "Не указан admin_id"}), 400
+
+    _, error = ensure_admin(admin_id)
+    if error:
+        return error
+
+    boss = query_db('SELECT * FROM boss_battles WHERE id = ?', [boss_id], one=True)
+    if not boss:
+        return jsonify({"error": "Босс не найден"}), 404
+
+    new_state = 0 if boss['is_active'] else 1
+
+    db = get_db()
+    db.execute(
+        'UPDATE boss_battles SET is_active = ? WHERE id = ?',
+        (new_state, boss_id)
+    )
+    db.execute('''
+        INSERT INTO admin_logs (admin_id, action_type, target_type, target_id, description)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (
+        admin_id,
+        'toggle_boss',
+        'boss',
+        boss_id,
+        f"Босс {boss['boss_name']} теперь {'активен' if new_state else 'неактивен'}"
+    ))
+    db.commit()
+
+    updated = query_db('SELECT * FROM boss_battles WHERE id = ?', [boss_id], one=True)
+    return jsonify({"success": True, "boss": dict(updated)})
+
+
 @app.route('/api/iceberg/facts/<int:fact_id>/position', methods=['POST'])
 def api_iceberg_fact_update_position(fact_id: int):
     data = request.get_json() or {}
@@ -766,13 +960,16 @@ def start_quiz():
 
     tasks = []
     for row in rows:
+        options = parse_options(row['options'])
+        random.shuffle(options)
+
         tasks.append({
             'id': row['id'],
             'subject': row['subject'],
             'difficulty': row['difficulty'],
             'topic': row['topic'],
             'question': row['question'],
-            'options': parse_options(row['options']),
+            'options': options,
             'answer': row['answer'],
             'hint': row['hint'] or ''
         })
@@ -787,38 +984,50 @@ def start_quiz():
 def save_quiz_result():
     data = request.get_json() or {}
     user_id = data.get('user_id')
-    tasks_solved = data.get('tasks_solved', 0)
-    correct_count = data.get('correct_count', 0)
-    xp_earned = data.get('xp_earned', 0)
+    tasks_solved = int(data.get('tasks_solved') or 0)
+    correct_count = int(data.get('correct_count') or 0)
+    xp_earned = int(data.get('xp_earned') or 0)
 
     if not user_id:
         return jsonify({"error": "Не указан user_id"}), 400
 
+    tasks_solved = max(tasks_solved, 0)
+    correct_count = max(0, min(correct_count, tasks_solved))
+    wrong_count = max(tasks_solved - correct_count, 0)
+    rating_delta = max(correct_count * 10 - wrong_count * 3, 0)
+
+    subject_stats_delta = data.get('subject_stats_delta') or {}
+
+    user_before = query_db('SELECT solved_count, subject_stats FROM users WHERE id = ?', [user_id], one=True)
+    if not user_before:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    solved_before = user_before['solved_count'] or 0
+    solved_after = solved_before + tasks_solved
+    subject_stats = merge_subject_stats(user_before['subject_stats'], subject_stats_delta)
+
     db = get_db()
     db.execute('''
-        UPDATE users 
+        UPDATE users
         SET solved_count = solved_count + ?,
             correct_count = correct_count + ?,
-            xp = xp + ?
+            xp = xp + ?,
+            rating = rating + ?,
+            subject_stats = ?
         WHERE id = ?
-    ''', (tasks_solved, correct_count, xp_earned, user_id))
+    ''', (tasks_solved, correct_count, xp_earned, rating_delta, subject_stats, user_id))
 
     db.execute('''
         INSERT INTO user_history (user_id, action_text, action_date)
         VALUES (?, ?, CURRENT_TIMESTAMP)
     ''', (user_id, f'Викторина: {correct_count}/{tasks_solved} правильных'))
 
-    user = query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
-    if user:
-        # За первый вопрос
-        if user['solved_count'] == 0 and tasks_solved > 0:
-            give_achievement(user_id, 'first_question')
-        # За 10 вопросов
-        if user['solved_count'] + tasks_solved >= 10:
-            give_achievement(user_id, 'ten_questions')
-        # За 50 вопросов
-        if user['solved_count'] + tasks_solved >= 50:
-            give_achievement(user_id, 'fifty_questions')
+    if solved_before == 0 and tasks_solved > 0:
+        give_achievement(user_id, 'first_question')
+    if solved_after >= 10:
+        give_achievement(user_id, 'ten_questions')
+    if solved_after >= 50:
+        give_achievement(user_id, 'fifty_questions')
 
     db.commit()
 
@@ -858,22 +1067,38 @@ def get_endless_best():
 def save_endless_result():
     data = request.get_json() or {}
     user_id = data.get('user_id')
-    time_survived = data.get('time_survived', 0)
-    correct_answers = data.get('correct_answers', 0)
-    xp_earned = data.get('xp_earned', 0)
+    time_survived = int(data.get('time_survived') or 0)
+    correct_answers = int(data.get('correct_answers') or 0)
+    xp_earned = int(data.get('xp_earned') or 0)
 
     if not user_id:
         return jsonify({"error": "Не указан user_id"}), 400
 
+    time_survived = max(time_survived, 0)
+    correct_answers = max(correct_answers, 0)
+    rating_delta = correct_answers * 5 + time_survived // 10
+
+    subject_stats_delta = data.get('subject_stats_delta') or {}
+
+    user_before = query_db('SELECT id, subject_stats FROM users WHERE id = ?', [user_id], one=True)
+    if not user_before:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    subject_stats = merge_subject_stats(user_before['subject_stats'], subject_stats_delta)
+
     db = get_db()
     db.execute('''
-        INSERT INTO endless_mode_records (user_id, time_survived, score, created_at)
+        INSERT INTO endless_mode_records (user_id, time_survived, score, achieved_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
     ''', (user_id, time_survived, correct_answers))
 
     db.execute('''
-        UPDATE users SET xp = xp + ? WHERE id = ?
-    ''', (xp_earned, user_id))
+        UPDATE users
+        SET xp = xp + ?,
+            rating = rating + ?,
+            subject_stats = ?
+        WHERE id = ?
+    ''', (xp_earned, rating_delta, subject_stats, user_id))
 
     db.execute('''
         INSERT INTO user_history (user_id, action_text, action_date)
@@ -893,6 +1118,7 @@ def save_endless_result():
 
 
 def format_time(seconds):
+    seconds = int(seconds or 0)
     minutes = seconds // 60
     secs = seconds % 60
     return f"{minutes:02d}:{secs:02d}"

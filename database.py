@@ -30,8 +30,8 @@ def create_database():
 
     # Боссы
     bosses = [
-        ("Lancer", "Just a lancer", 3500, "/static/images/bosses/lancer.png", 1, 500, 1, 1),
-        ("Spamton NEO", "BIIIG SHOOOT", 5000, "/static/images/bosses/BIGSHOT.png", 2, 750, 5, 1),
+        ("Lancer", "Just a lancer", 540, "/static/images/bosses/lancer.png", 1, 500, 1, 1),
+        ("Spamton NEO", "BIIIG SHOOOT", 4809, "/static/images/bosses/BIGSHOT.png", 2, 750, 5, 1),
         ("Sans", "SanS Undertale", 1, "/static/images/bosses/sans.png", 3, 1000, 10, 1)
     ]
 

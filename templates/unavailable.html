@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Страница недоступна — UNDERDELTA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* В style.css раньше звёздочка была через ::before.
+           Здесь она отдельным span, чтобы можно было мигать только ей. */
+        .unavailable-dialog-box::before {
+            content: none !important;
+        }
+
+        .unavailable-dialog-box {
+            gap: 12px;
+        }
+
+        .unavailable-dialog-star {
+            flex-shrink: 0;
+            color: #fff;
+        }
+
+        .unavailable-dialog-star.is-waiting {
+            animation: unavailableStarBlink 0.8s steps(1, end) infinite;
+        }
+
+        @keyframes unavailableStarBlink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        .unavailable-dialog-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body>
+    <main class="unavailable-page">
+        <section class="unavailable-card" aria-label="Страница недоступна">
+            <img
+                src="{{ url_for('static', filename='gifs/sansshrug.gif') }}"
+                alt="Sans shrug"
+                class="unavailable-sans"
+            >
+
+            <div class="unavailable-dialog-box">
+                <span id="undertale-dialog-star" class="unavailable-dialog-star is-waiting">*</span>
+                <span id="undertale-typewriter" class="unavailable-dialog-text"></span>
+            </div>
+
+            <div class="unavailable-actions">
+                <a class="unavailable-back-btn" href="/">← обратно</a>
+            </div>
+        </section>
+    </main>
+
+<script>
+(function () {
+    const rawText = {{ message|default('эта страница не найдена, приятель.', true)|tojson }};
+    const text = String(rawText || 'эта страница не найдена, приятель.').replace(/^\*\s*/, '');
+
+    const output = document.getElementById('undertale-typewriter');
+    const star = document.getElementById('undertale-dialog-star');
+
+    // Файл должен лежать тут:
+    // static/sounds/snd_txtsans.wav
+    const talkSoundUrl = "{{ url_for('static', filename='sounds/snd_txtsans.wav') }}";
+
+    const TYPE_DELAY = 46;
+    const COMMA_DELAY = 135;
+    const DOT_DELAY = 210;
+    const START_DELAY = 120;
+
+    const BLIP_VOLUME = 0.55;
+    const BLIP_MAX_DURATION = 0.12;
+    const BLIP_FADE_IN = 0.002;
+    const BLIP_FADE_OUT = 0.018;
+    const MIN_BLIP_DELAY = 0.045;
+    const SILENT_CHARS = ' \n\t.,!?;:—-()[]{}"\'«»';
+
+    let index = 0;
+    let typingStarted = false;
+    let typingFinished = false;
+    let audioContext = null;
+    let sansVoiceBuffer = null;
+    let audioLoadPromise = null;
+    let lastBlipTime = 0;
+
+    function isLikelyDirectAddressBarOpen() {
+        // При прямом вводе URL/обновлении/закладке document.referrer обычно пустой.
+        // В этом режиме ждём первый клик/клавишу, чтобы Chrome разрешил звук,
+        // и только потом запускаем печать текста.
+        return !document.referrer;
+    }
+
+    function getAudioContext() {
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+            if (!AudioContextClass) {
+                return null;
+            }
+
+            audioContext = new AudioContextClass();
+        }
+
+        return audioContext;
+    }
+
+    async function resumeAudioContext() {
+        const ctx = getAudioContext();
+
+        if (!ctx) {
+            return null;
+        }
+
+        if (ctx.state === 'suspended') {
+            try {
+                await ctx.resume();
+            } catch (error) {
+                // Chrome может не дать стартовать звуку без user gesture.
+            }
+        }
+
+        return ctx;
+    }
+
+    async function initSansVoice() {
+        if (sansVoiceBuffer) {
+            return sansVoiceBuffer;
+        }
+
+        if (audioLoadPromise) {
+            return audioLoadPromise;
+        }
+
+        const ctx = getAudioContext();
+
+        if (!ctx) {
+            return null;
+        }
+
+        audioLoadPromise = fetch(talkSoundUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Не найден файл звука: ' + talkSoundUrl);
+                }
+
+                return response.arrayBuffer();
+            })
+            .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
+            .then(buffer => {
+                sansVoiceBuffer = buffer;
+                return buffer;
+            })
+            .catch(error => {
+                console.warn('Не удалось загрузить snd_txtsans.wav:', error);
+                return null;
+            });
+
+        return audioLoadPromise;
+    }
+
+    function shouldPlayBlip(character) {
+        if (SILENT_CHARS.includes(character)) {
+            return false;
+        }
+
+        if (!audioContext || !sansVoiceBuffer || audioContext.state !== 'running') {
+            return false;
+        }
+
+        const now = audioContext.currentTime;
+        return now - lastBlipTime >= MIN_BLIP_DELAY;
+    }
+
+    function playSansBlip(character) {
+        if (!shouldPlayBlip(character)) {
+            return;
+        }
+
+        const ctx = audioContext;
+        const now = ctx.currentTime;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const duration = Math.min(BLIP_MAX_DURATION, sansVoiceBuffer.duration);
+        const fadeStart = Math.max(BLIP_FADE_IN, duration - BLIP_FADE_OUT);
+
+        source.buffer = sansVoiceBuffer;
+
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(BLIP_VOLUME, now + BLIP_FADE_IN);
+        gain.gain.setValueAtTime(BLIP_VOLUME, now + fadeStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        source.connect(gain);
+        gain.connect(ctx.destination);
+
+        source.start(now, 0, duration);
+        source.stop(now + duration + 0.01);
+
+        lastBlipTime = now;
+    }
+
+    function getCharacterDelay(character) {
+        if (character === '.' || character === '!' || character === '?') {
+            return DOT_DELAY;
+        }
+
+        if (character === ',' || character === ';' || character === ':') {
+            return COMMA_DELAY;
+        }
+
+        return TYPE_DELAY;
+    }
+
+    function stopStarBlinking() {
+        if (star) {
+            star.classList.remove('is-waiting');
+        }
+    }
+
+    function startStarBlinking() {
+        if (star) {
+            star.classList.add('is-waiting');
+        }
+    }
+
+    function typeNextChar() {
+        if (index >= text.length) {
+            typingFinished = true;
+            stopStarBlinking();
+            return;
+        }
+
+        const character = text[index];
+
+        if (index === 0) {
+            stopStarBlinking();
+        }
+
+        output.textContent += character;
+        playSansBlip(character);
+
+        index += 1;
+        setTimeout(typeNextChar, getCharacterDelay(character));
+    }
+
+    function beginTypewriter() {
+        if (typingStarted) {
+            return;
+        }
+
+        typingStarted = true;
+        output.textContent = '';
+
+        setTimeout(typeNextChar, START_DELAY);
+    }
+
+    async function beginWithSoundAttempt() {
+        if (typingStarted || typingFinished) {
+            return;
+        }
+
+        await initSansVoice();
+        await resumeAudioContext();
+        beginTypewriter();
+    }
+
+    async function unlockSoundOnly() {
+        await initSansVoice();
+        await resumeAudioContext();
+    }
+
+    function handleFirstInteraction() {
+        if (!typingStarted) {
+            beginWithSoundAttempt();
+        } else {
+            unlockSoundOnly();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startStarBlinking();
+
+        if (isLikelyDirectAddressBarOpen()) {
+            // Прямой ввод URL: ждём любое действие, чтобы текст пошёл уже со звуком.
+            return;
+        }
+
+        // Переход внутри сайта: пользователь уже взаимодействовал с доменом,
+        // поэтому можно сразу пробовать печатать и играть blip.
+        beginWithSoundAttempt();
+    });
+
+    ['pointerdown', 'keydown', 'touchstart'].forEach(eventName => {
+        document.addEventListener(eventName, handleFirstInteraction, { once: false, passive: true });
+    });
+})();
+</script>
+</body>
+</html>

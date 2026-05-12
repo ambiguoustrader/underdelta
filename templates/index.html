@@ -36,7 +36,7 @@
         <div id="login-form">
             <div style="margin-bottom: 16px;">
                 <label style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px; display: block;">Email</label>
-                <input type="email" id="login-email" class="input-field" placeholder="">
+                <input type="email" id="login-email" class="input-field" placeholder="name@example.com" autocomplete="email" required inputmode="email" oninput="sbrositOshibkuEmail(this)">
             </div>
             <div style="margin-bottom: 20px;">
                 <label style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px; display: block;">Пароль</label>
@@ -62,7 +62,7 @@
             </div>
             <div style="margin-bottom: 16px;">
                 <label style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px; display: block;">Email</label>
-                <input type="email" id="reg-email" class="input-field" placeholder="">
+                <input type="email" id="reg-email" class="input-field" placeholder="name@example.com" autocomplete="email" required inputmode="email" oninput="sbrositOshibkuEmail(this)">
             </div>
             <div style="margin-bottom: 20px;">
                 <label style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px; display: block;">Пароль</label>
@@ -572,44 +572,7 @@
             <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 8px;">Айсберг фактов</h1>
             <p style="color: #9ca3af; margin-bottom: 28px;">Нажми на точку чтобы узнать интересный факт</p>
 
-            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;">
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></div>
-                    <span style="color: #9ca3af;">Уровень 1 — Известные факты</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #3b82f6;"></div>
-                    <span style="color: #9ca3af;">Уровень 2 — Малоизвестное</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #a855f7;"></div>
-                    <span style="color: #9ca3af;">Уровень 3 — Детали</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #f59e0b;"></div>
-                    <span style="color: #9ca3af;">Уровень 4 — Теории</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444;"></div>
-                    <span style="color: #9ca3af;">Уровень 5 — Тёмные секреты</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></div>
-                    <span style="color: #9ca3af;">Уровень 6 — Глубина</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #3b82f6;"></div>
-                    <span style="color: #9ca3af;">Уровень 7 — Ниже дна</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #a855f7;"></div>
-                    <span style="color: #9ca3af;">Уровень 8 — Темнота</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #f59e0b;"></div>
-                    <span style="color: #9ca3af;">Уровень 9 — ДОМ</span>
-                </div>
-            </div>
+            <div id="iceberg-legend" class="iceberg-legend"></div>
 
             <!-- Айсберг -->
             <div id="iceberg-view">
